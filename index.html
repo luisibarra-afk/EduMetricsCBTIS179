@@ -594,6 +594,15 @@ tr:last-child td { border-bottom:none; }
           <div class="tbl-head"><span class="tbl-head-title">Tabla comparativa por carrera</span></div>
           <div class="tbl-wrap"><table><thead><tr><th>Carrera</th><th>Prom. A</th><th>Prom. B</th><th>Δ Prom.</th><th>Rep. A</th><th>Rep. B</th><th>Δ Rep.</th><th>% Apr. A</th><th>% Apr. B</th></tr></thead><tbody id="tbCompare"></tbody></table></div>
         </div>
+        <div id="abandonoSection" style="display:none;margin-top:1rem">
+          <div class="tbl-card">
+            <div class="tbl-head" style="display:flex;justify-content:space-between;align-items:center">
+              <span class="tbl-head-title">🚪 Alumnos que no continuaron en Período B (Abandono)</span>
+              <button class="btn-sec" onclick="exportAbandonoCSV()" style="font-size:.75rem;padding:4px 10px">⬇ Exportar CSV</button>
+            </div>
+            <div class="tbl-wrap"><table><thead><tr><th>N° Control</th><th>Nombre</th><th>Carrera</th><th>Sem.</th><th>Grupo</th><th>Turno</th><th>Prom. A</th><th>Mat. Rep.</th><th>Materias Reprobadas en A</th></tr></thead><tbody id="tbAbandono"></tbody></table></div>
+          </div>
+        </div>
       </div>
       <div id="compareHint" style="text-align:center;padding:3rem;color:var(--text2);font-size:.9rem">Carga los dos archivos para ver la comparativa</div>
     </div>
@@ -2272,7 +2281,7 @@ function exportRiesgoExcel(){
 // ─────────────────────────────────────────────
 // COMPARAR PERÍODOS
 // ─────────────────────────────────────────────
-let compareData={};
+let compareData={},abandonedData=[],abandonedRepMats={};
 function loadCompare(slot,file){
   if(!file) return;
   const r=new FileReader();
@@ -2296,11 +2305,27 @@ function renderCompare(){
   document.getElementById('compareHint').style.display='none';
   document.getElementById('compareResults').style.display='block';
   const delta=(b,a,fmt)=>{const d=b-a,s=d>0?'+':'',cl=d>0?'delta-pos':d<0?'delta-neg':'delta-neu';return`<span class="${cl}">${s}${fmt(d)}</span>`;};
+  // ── CÁLCULO DE ABANDONO ──
+  const ncsA=new Set(A.students.map(s=>s.nc));
+  const ncsB=new Set(B.students.map(s=>s.nc));
+  abandonedData=A.students.filter(s=>!ncsB.has(s.nc));
+  const dropIdx=A.meta.alumnos>0?Math.round(abandonedData.length/A.meta.alumnos*1000)/10:0;
+  // Materias reprobadas en A para cada alumno abandonado
+  const repMatsMap={};
+  for(const row of A.rawRows){
+    if(ncsA.has(row.nc)&&!ncsB.has(row.nc)&&row.cal>0&&row.cal<6){
+      if(!repMatsMap[row.nc]) repMatsMap[row.nc]=[];
+      if(!repMatsMap[row.nc].includes(row.asignatura)) repMatsMap[row.nc].push(row.asignatura);
+    }
+  }
+  abandonedRepMats=repMatsMap;
+
   document.getElementById('compareKpis').innerHTML=`
     <div class="kpi kv"><div class="kpi-label">Promedio A → B</div><div class="kpi-value">${B.kpis.prom}</div><div class="kpi-sub">Antes: ${A.kpis.prom} ${delta(B.kpis.prom,A.kpis.prom,d=>Math.abs(d).toFixed(2))}</div></div>
     <div class="kpi kg"><div class="kpi-label">Aprobados A → B</div><div class="kpi-value">${B.kpis.apro_pct}%</div><div class="kpi-sub">Antes: ${A.kpis.apro_pct}% ${delta(B.kpis.apro_pct,A.kpis.apro_pct,d=>Math.abs(d).toFixed(1)+'%')}</div></div>
     <div class="kpi kr"><div class="kpi-label">Reprobados A → B</div><div class="kpi-value">${B.kpis.rep_pct}%</div><div class="kpi-sub">Antes: ${A.kpis.rep_pct}% ${delta(B.kpis.rep_pct,A.kpis.rep_pct,d=>Math.abs(d).toFixed(1)+'%')}</div></div>
     <div class="kpi" style="border-top-color:var(--purple)"><div class="kpi-label">Alumnos A → B</div><div class="kpi-value" style="color:var(--purple)">${B.meta.alumnos}</div><div class="kpi-sub">Antes: ${A.meta.alumnos} ${delta(B.meta.alumnos,A.meta.alumnos,d=>Math.abs(d))}</div></div>
+    <div class="kpi" style="border-top-color:#d97706"><div class="kpi-label">Índice de Abandono</div><div class="kpi-value" style="color:#d97706">${dropIdx}%</div><div class="kpi-sub">${abandonedData.length} alumnos no continuaron en B</div></div>
   `;
   const allC=[...new Set([...A.carreras.map(c=>c.n),...B.carreras.map(c=>c.n)])].sort();
   const getC=(ds,n,f)=>{const c=ds.carreras.find(x=>x.n===n);return c?f(c):null;};
@@ -2313,6 +2338,38 @@ function renderCompare(){
     const td=(x='')=>`padding:7px 9px;border-bottom:1px solid #eee;background:${i%2?'#fdf5f6':'#fff'};${x}`;
     return`<tr><td style="${td()};font-weight:700;color:var(--vino)">${n}</td><td style="${td()};text-align:center">${a?a.prom:'—'}</td><td style="${td()};text-align:center;font-weight:700">${b?b.prom:'—'}</td><td style="${td()};text-align:center;font-weight:700;color:${dpc}">${dp!==null?(dp>0?'+':'')+dp.toFixed(2):'—'}</td><td style="${td()};text-align:center">${a?a.rep:'—'}</td><td style="${td()};text-align:center;font-weight:700">${b?b.rep:'—'}</td><td style="${td()};text-align:center;font-weight:700;color:${drc}">${dr!==null?(dr>0?'+':'')+dr:'—'}</td><td style="${td()};text-align:center">${a?pct(a.apro,a.apro+a.rep+a.np)+'%':'—'}</td><td style="${td()};text-align:center;font-weight:700">${b?pct(b.apro,b.apro+b.rep+b.np)+'%':'—'}</td></tr>`;
   }).join('');
+
+  // ── TABLA DE ABANDONO ──
+  const secAb=document.getElementById('abandonoSection');
+  secAb.style.display=abandonedData.length?'block':'none';
+  document.getElementById('tbAbandono').innerHTML=abandonedData.slice().sort((a,b)=>b.rep-a.rep).map((s,i)=>{
+    const mats=repMatsMap[s.nc]||[];
+    const td=(x='')=>`padding:7px 9px;border-bottom:1px solid #eee;background:${i%2?'#fdf5f6':'#fff'};${x}`;
+    return`<tr>
+      <td style="${td()};font-family:'DM Mono',monospace;font-size:.8rem">${s.nc}</td>
+      <td style="${td()};font-weight:600">${s.nombre}</td>
+      <td style="${td()}">${s.carrera}</td>
+      <td style="${td()};text-align:center">${s.sem}</td>
+      <td style="${td()};text-align:center">${s.grupo}</td>
+      <td style="${td()};text-align:center">${s.turno}</td>
+      <td style="${td()};text-align:center;font-family:'DM Mono',monospace">${s.prom}</td>
+      <td style="${td()};text-align:center;font-weight:700;color:${s.rep>0?'#C62828':'#2E7D32'}">${s.rep}</td>
+      <td style="${td()};font-size:.8rem;color:#555">${mats.join(', ')||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+function exportAbandonoCSV(){
+  if(!abandonedData.length) return;
+  const A=compareData[1];
+  const periodo=A?A.meta.periodo:'';
+  const hdr='N° Control,Nombre,Carrera,Semestre,Grupo,Turno,Promedio A,Mat. Reprobadas,Materias Reprobadas\n';
+  const rows=abandonedData.slice().sort((a,b)=>b.rep-a.rep).map(s=>{
+    const mats=(abandonedRepMats[s.nc]||[]).join(' | ');
+    return[s.nc,`"${s.nombre}"`,`"${s.carrera}"`,s.sem,s.grupo,s.turno,s.prom,s.rep,`"${mats}"`].join(',');
+  }).join('\n');
+  const blob=new Blob(['\uFEFF'+hdr+rows],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`abandono_${periodo.replace(/\s+/g,'_')}.csv`;a.click();
 }
 </script>
 </body>
