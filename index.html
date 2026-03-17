@@ -373,7 +373,6 @@ tr:last-child td { border-bottom:none; }
       <button class="nav-btn" onclick="showPage('calor')"           data-p="calor">🔥 Mapa de Calor</button>
       <button class="nav-btn" onclick="showPage('riesgo')"          data-p="riesgo">⚠️ En Riesgo</button>
       <button class="nav-btn" onclick="showPage('comparar')"        data-p="comparar">↔️ Comparar</button>
-      <button class="nav-btn" onclick="showPage('reportes')"        data-p="reportes">📄 Reportes</button>
     </div>
   </nav>
 
@@ -608,19 +607,6 @@ tr:last-child td { border-bottom:none; }
     </div>
 
 
-    <!-- REPORTES -->
-    <div id="page-reportes" class="page">
-      <div class="sec-head">
-        <div class="sec-head-left"><div class="sec-title">📄 Reportes PDF</div><div class="sec-sub">Genera reportes con formato oficial para dirección escolar</div></div>
-      </div>
-      <div class="report-grid">
-        <div class="report-card"><h3>📊 Reporte General</h3><p>Resumen ejecutivo con KPIs institucionales, distribución de calificaciones y rendimiento por carrera.</p><button class="btn-prim" onclick="genPDF('general')">⬇ Descargar PDF</button></div>
-        <div class="report-card"><h3>⚠️ Reporte de Riesgo</h3><p>Lista de alumnos con materias reprobadas, desglosada por nivel. Incluye semestre, turno y grupo.</p><button class="btn-prim" onclick="genPDF('riesgo')">⬇ Descargar PDF</button></div>
-        <div class="report-card"><h3>👨‍🏫 Reporte Docentes</h3><p>Desempeño comparativo con promedio, aprobación y semáforo de rendimiento por docente.</p><button class="btn-prim" onclick="genPDF('docentes')">⬇ Descargar PDF</button></div>
-        <div class="report-card"><h3>🏫 Reporte por Carrera</h3><p>Análisis por programa educativo con estadísticas detalladas y asignaturas críticas.</p><button class="btn-prim" onclick="genPDF('carreras')">⬇ Descargar PDF</button></div>
-      </div>
-    </div>
-
   </main>
 
   <footer class="copyright">
@@ -764,7 +750,7 @@ function detectCols(headers){
     a2:        find('ASISTENCIA PERIODO 2','ASIST2','ASIST P2'),
     a3:        find('ASISTENCIA PERIODO 3','ASIST3','ASIST P3'),
     tipo:      find('TIPO ACRED','ACRED','TIPO'),
-    periodo:   find('PERIODO','SEMESTRE ESCOLAR'),
+    periodo:   find('PERIODO ESCOLAR','SEMESTRE ESCOLAR','CICLO ESCOLAR','CICLO LECTIVO'),
     firmado:   find('FIRMADO','FIRMA'),
   };
 }
@@ -818,7 +804,7 @@ function buildDataset(rows){
       if(pv && pv.length>2) plantelName=pv.trim().toUpperCase();
     }
     if(!clavePlantel){ const cv=g(row,c.clave); if(cv&&cv.length>2) clavePlantel=cv.trim().toUpperCase(); }
-    if(!periodoName){ const pn=g(row,c.periodo); if(pn&&pn.length>2) periodoName=pn.trim().toUpperCase(); }
+    if(!periodoName){ const pn=g(row,c.periodo).trim(); if(pn&&pn.length>3&&!/^\d+\.?\d*$/.test(pn)) periodoName=pn.toUpperCase(); }
 
     data.push({
       plantel: g(row,c.plantel).trim(),
