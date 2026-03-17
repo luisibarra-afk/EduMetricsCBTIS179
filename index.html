@@ -1,0 +1,2319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DGETI — Analizador de Calificaciones</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ── Paleta Institucional SEP/DGETI ── */
+  --bg:       #f4f5f7;
+  --surface:  #ffffff;
+  --surface2: #f0f1f4;
+  --surface3: #e4e6eb;
+  --border:   #d0d4dc;
+  --accent:   #6B1130;   /* vino institucional */
+  --accent2:  #9B1D47;   /* vino claro */
+  --accent3:  #2E7D32;   /* verde federal */
+  --green:    #2E7D32;
+  --green2:   #43A047;
+  --red:      #C62828;
+  --yellow:   #F57F17;
+  --orange:   #E65100;
+  --purple:   #6B1130;
+  --text:     #1a1f2e;
+  --text2:    #5a6275;
+  --white:    #ffffff;
+  --shadow:   0 2px 12px rgba(107,17,48,.08);
+  --shadow-lg:0 8px 32px rgba(107,17,48,.12);
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { font-family:'DM Sans',sans-serif; background:#f4f5f7; color:#1a1f2e; min-height:100vh; overflow-x:hidden; }
+
+/* ── UPLOAD SCREEN ── */
+#uploadScreen {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background: linear-gradient(160deg, #6B1130 0%, #3d0a1c 40%, #1a2a1a 100%);
+}
+.upload-wrap { text-align:center; max-width:560px; padding:2rem; }
+.upload-logo { display:flex; align-items:center; justify-content:center; gap:.75rem; margin-bottom:2.5rem; }
+.upload-logo-badge {
+  background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
+  color:#fff; font-family:'DM Mono',monospace; font-size:.75rem; font-weight:600;
+  padding:.4rem .75rem; border-radius:8px; letter-spacing:.12em;
+}
+.upload-logo-text { font-size:1.1rem; font-weight:700; color:#fff; }
+.upload-title { font-size:2.4rem; font-weight:800; color:#fff; line-height:1.15; margin-bottom:.75rem; }
+.upload-title span { color:#f9a8c0; }
+.upload-sub { font-size:1rem; color:rgba(255,255,255,.7); margin-bottom:2.5rem; line-height:1.6; }
+
+.drop-zone {
+  border:2px dashed rgba(255,255,255,.3); border-radius:16px;
+  padding:3rem 2rem; cursor:pointer; transition:all .25s;
+  background:rgba(255,255,255,.08);
+}
+.drop-zone:hover, .drop-zone.drag-over { border-color:#fff; background:rgba(255,255,255,.14); }
+.drop-zone.drag-over { transform:scale(1.01); }
+.drop-icon { font-size:3rem; margin-bottom:1rem; display:block; }
+.drop-title { font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:.4rem; }
+.drop-sub { font-size:.85rem; color:rgba(255,255,255,.6); }
+.drop-formats { display:flex; justify-content:center; gap:.5rem; margin-top:1rem; }
+.fmt-pill { font-size:.7rem; font-family:'DM Mono',monospace; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); color:rgba(255,255,255,.7); padding:.25rem .6rem; border-radius:20px; }
+#fileInput { display:none; }
+.upload-features { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.75rem; margin-top:2rem; }
+.feat { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:.9rem; text-align:center; }
+.feat-icon { font-size:1.4rem; margin-bottom:.4rem; display:block; }
+.feat-text { font-size:.72rem; color:rgba(255,255,255,.65); font-weight:500; }
+
+/* ── LOADING ── */
+#loadingScreen {
+  display:none; min-height:100vh; align-items:center; justify-content:center;
+  flex-direction:column; gap:1.5rem; background:var(--bg);
+}
+.loading-spinner { width:52px; height:52px; border:3px solid var(--surface3); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-text { font-size:1rem; color:var(--text2); font-weight:500; }
+.loading-bar-wrap { width:280px; height:4px; background:var(--surface3); border-radius:2px; overflow:hidden; }
+.loading-bar { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:2px; width:0; transition:width .3s; }
+
+/* ── HEADER ── */
+#appScreen { display:none; }
+.header {
+  background:var(--accent);
+  border-bottom:3px solid #4a0c22;
+  position:sticky; top:0; z-index:100;
+  box-shadow:0 2px 12px rgba(107,17,48,.25);
+}
+.header-inner { max-width:1400px; margin:0 auto; padding:0 1.5rem; display:flex; align-items:center; justify-content:space-between; height:60px; }
+.header-left { display:flex; align-items:center; gap:.75rem; }
+.h-badge { background:rgba(255,255,255,.2); color:#fff; font-family:'DM Mono',monospace; font-size:.65rem; font-weight:700; padding:.28rem .6rem; border-radius:6px; letter-spacing:.1em; border:1px solid rgba(255,255,255,.3); }
+.h-plantel { font-size:.95rem; font-weight:700; color:#fff; }
+.h-periodo { font-size:.72rem; font-family:'DM Mono',monospace; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:.2rem .65rem; border-radius:20px; }
+.h-right { display:flex; align-items:center; gap:.75rem; }
+.btn-reset { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.3); color:#fff; font-family:'DM Sans',sans-serif; font-size:.78rem; padding:.4rem .9rem; border-radius:8px; cursor:pointer; transition:all .2s; display:flex; align-items:center; gap:.4rem; }
+.btn-reset:hover { background:rgba(255,255,255,.22); }
+
+/* ── NAV ── */
+.nav { background:#f4f0f1; border-bottom:2px solid #ddd0d4; overflow-x:auto; scrollbar-width:none; box-shadow:0 2px 8px rgba(107,17,48,.08); }
+.nav::-webkit-scrollbar { display:none; }
+.nav-inner { max-width:1400px; margin:0 auto; display:flex; align-items:center; gap:.35rem; padding:.55rem 1.5rem; }
+.nav-btn {
+  background:#fff;
+  border:1.5px solid #d0c4c8;
+  color:#5a4050;
+  font-family:'DM Sans',sans-serif;
+  font-size:.8rem; font-weight:600;
+  padding:.42rem 1rem;
+  cursor:pointer;
+  border-radius:20px;
+  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+  white-space:nowrap;
+  display:flex; align-items:center; gap:.35rem;
+  box-shadow:0 1px 3px rgba(107,17,48,.07);
+}
+.nav-btn::before { display:none !important; }
+.nav-btn:hover {
+  background:#f9eef2;
+  border-color:#6B1130;
+  color:#6B1130;
+  transform:translateY(-1px);
+  box-shadow:0 3px 10px rgba(107,17,48,.15);
+}
+.nav-btn.active {
+  background:#6B1130;
+  border-color:#6B1130;
+  color:#ffffff;
+  font-weight:700;
+  box-shadow:0 4px 14px rgba(107,17,48,.35);
+  transform:translateY(-1px);
+}
+
+.main { max-width:1400px; margin:0 auto; padding:1.75rem 1.5rem; background:#f4f5f7; }
+.page { display:none; }
+.page.active { display:block; background:#f4f5f7; }
+
+/* KPIs */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:.9rem; margin-bottom:1.75rem; }
+.kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.25rem; position:relative; overflow:hidden; transition:transform .2s, box-shadow .2s; box-shadow:var(--shadow); }
+.kpi:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.kpi-glow { position:absolute; top:-20px; right:-20px; width:80px; height:80px; border-radius:50%; filter:blur(28px); opacity:.15; }
+.kpi-label { font-size:.68rem; color:var(--text2); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.5rem; font-weight:600; }
+.kpi-value { font-size:2rem; font-weight:800; font-family:'DM Mono',monospace; line-height:1.1; }
+.kpi-sub { font-size:.72rem; color:var(--text2); margin-top:.35rem; }
+
+/* CHARTS */
+.charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.75rem; }
+.chart-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.4rem; box-shadow:var(--shadow); }
+.chart-card.full { grid-column:1/-1; }
+.chart-card.wide { grid-column:span 2; }
+.card-title { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--text2); margin-bottom:1.25rem; display:flex; align-items:center; gap:.5rem; }
+.chart-wrap { position:relative; height:250px; }
+.chart-wrap.tall { height:310px; }
+.chart-wrap.short { height:190px; }
+
+/* SECTION HEAD */
+.sec-head { margin-bottom:1.5rem; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
+.sec-head-left {}
+.sec-title { font-size:1.6rem; font-weight:800; color:#6B1130; margin-bottom:.3rem; }
+.sec-sub { font-size:.85rem; color:#5a6275; }
+
+/* TABLES */
+.tbl-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:1.5rem; box-shadow:var(--shadow); }
+.tbl-head { padding:1rem 1.25rem; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; background:var(--surface2); }
+.tbl-head-title { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--text2); }
+.search-input { background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:.8rem; padding:.42rem .9rem; outline:none; width:220px; transition:border-color .2s; }
+.search-input:focus { border-color:var(--accent); }
+.search-input::placeholder { color:var(--text2); }
+.tbl-wrap { overflow-x:auto; max-height:430px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) var(--surface); }
+table { width:100%; border-collapse:collapse; font-size:.8rem; }
+th { background:var(--surface2); color:var(--text2); font-weight:700; font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; padding:.75rem 1rem; text-align:left; position:sticky; top:0; z-index:1; cursor:pointer; white-space:nowrap; user-select:none; border-bottom:2px solid var(--border); }
+th:hover { color:var(--accent); }
+th.asc::after { content:' ↑'; }
+th.desc::after { content:' ↓'; }
+td { padding:.65rem 1rem; border-bottom:1px solid var(--border); color:var(--text); }
+tr:hover td { background:rgba(107,17,48,.04); }
+tr:last-child td { border-bottom:none; }
+
+/* BADGES */
+.cal-badge { display:inline-flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:700; font-family:'DM Mono',monospace; padding:.22rem .55rem; border-radius:5px; min-width:36px; }
+.cal-10 { background:#e8f5e9; color:#1b5e20; }
+.cal-9  { background:#e8f5e9; color:#2e7d32; }
+.cal-8  { background:#e3f2fd; color:#1565c0; }
+.cal-7  { background:#f5f5f5; color:#424242; }
+.cal-6  { background:#fff3e0; color:#e65100; }
+.cal-rep{ background:#ffebee; color:#b71c1c; }
+.cal-np { background:#f5f5f5; color:#9e9e9e; }
+
+/* FILTER ROW */
+.filter-row { display:flex; gap:.65rem; flex-wrap:wrap; align-items:center; margin-bottom:1.25rem; }
+.filter-select { background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:.78rem; padding:.4rem .85rem; outline:none; cursor:pointer; transition:border-color .2s; }
+.filter-select:focus { border-color:var(--accent); }
+.count-tag { font-size:.72rem; color:var(--text2); font-family:'DM Mono',monospace; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:.28rem .7rem; }
+
+/* PAGINATION */
+.pagin { display:flex; align-items:center; justify-content:center; gap:.4rem; padding:.9rem; border-top:1px solid var(--border); background:var(--surface2); }
+.pg-btn { background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:.75rem; padding:.32rem .7rem; border-radius:6px; cursor:pointer; transition:all .2s; font-family:'DM Mono',monospace; }
+.pg-btn:hover, .pg-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.pg-info { font-size:.72rem; color:var(--text2); font-family:'DM Mono',monospace; padding:0 .4rem; }
+
+/* RISK CARDS */
+.risk-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(295px,1fr)); gap:.9rem; margin-bottom:1.75rem; }
+.risk-card { background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--red); border-radius:10px; padding:1rem; transition:transform .2s, box-shadow .2s; box-shadow:var(--shadow); }
+.risk-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.risk-name { font-size:.87rem; font-weight:700; color:var(--text); margin-bottom:.2rem; }
+.risk-meta { font-size:.7rem; color:var(--text2); font-family:'DM Mono',monospace; }
+.pills { display:flex; gap:.35rem; margin-top:.6rem; flex-wrap:wrap; }
+.pill { font-size:.68rem; font-weight:600; padding:.18rem .55rem; border-radius:20px; font-family:'DM Mono',monospace; }
+.pill-r { background:#ffebee; color:#b71c1c; }
+.pill-y { background:#fff8e1; color:#e65100; }
+.pill-b { background:#e3f2fd; color:#1565c0; }
+
+/* DOCENTE CARDS */
+.doc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:.9rem; margin-bottom:1.75rem; }
+.doc-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.2rem; transition:border-color .2s, transform .2s, box-shadow .2s; box-shadow:var(--shadow); }
+.doc-card:hover { border-color:var(--accent); transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.doc-name { font-size:.88rem; font-weight:700; color:var(--text); margin-bottom:.85rem; line-height:1.3; }
+.doc-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.5rem; margin-bottom:.75rem; }
+.doc-stat { text-align:center; background:var(--surface2); border-radius:8px; padding:.55rem .4rem; border:1px solid var(--border); }
+.doc-stat-val { font-size:1.15rem; font-weight:800; font-family:'DM Mono',monospace; }
+.doc-stat-lbl { font-size:.62rem; color:var(--text2); text-transform:uppercase; letter-spacing:.04em; margin-top:.1rem; }
+.mini-bar { height:5px; background:var(--surface3); border-radius:3px; overflow:hidden; margin-top:.7rem; }
+.mini-fill { height:100%; border-radius:3px; transition:width .6s ease; }
+
+/* REPORT BUTTONS */
+.report-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.25rem; }
+.report-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.4rem; box-shadow:var(--shadow); }
+.report-card h3 { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--text2); margin-bottom:.85rem; }
+.report-card p { font-size:.82rem; color:var(--text2); line-height:1.65; margin-bottom:1.1rem; }
+.btn-prim { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:.6rem 1.2rem; font-family:'DM Sans',sans-serif; font-size:.82rem; font-weight:700; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:.5rem; }
+.btn-prim:hover { background:#4a0c22; transform:translateY(-1px); box-shadow:0 6px 20px rgba(107,17,48,.3); }
+.btn-sec { background:var(--accent3); color:#fff; border:none; border-radius:8px; padding:.5rem 1rem; font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:700; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:.4rem; }
+.btn-sec:hover { background:#1b5e20; transform:translateY(-1px); }
+
+/* HEATMAP */
+.heatmap-wrap { overflow-x:auto; }
+.heatmap-table { border-collapse:collapse; font-size:.72rem; min-width:600px; }
+.heatmap-table th { padding:.45rem .6rem; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); background:var(--surface2); white-space:nowrap; border:1px solid var(--border); }
+.heatmap-table td { padding:.4rem .55rem; text-align:center; border:1px solid var(--border); font-family:'DM Mono',monospace; font-size:.72rem; min-width:42px; }
+.hm-0 { background:#f5f5f5; color:#bdbdbd; }
+.hm-1 { background:#fff8e1; color:#f57f17; font-weight:600; }
+.hm-2 { background:#fff3e0; color:#e65100; font-weight:600; }
+.hm-3 { background:#ffebee; color:#c62828; font-weight:700; }
+.hm-4 { background:#b71c1c; color:#fff; font-weight:800; }
+
+/* COMPARE */
+.compare-slots { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+.compare-slot { background:var(--surface); border:2px dashed var(--border); border-radius:12px; padding:1.25rem; text-align:center; cursor:pointer; transition:all .2s; box-shadow:var(--shadow); }
+.compare-slot.loaded { border-style:solid; border-color:var(--green); background:#f1f8e9; }
+.compare-slot:hover { border-color:var(--accent); }
+.compare-slot-label { font-size:.72rem; color:var(--text2); text-transform:uppercase; letter-spacing:.08em; margin-bottom:.5rem; }
+.compare-slot-name { font-size:.88rem; font-weight:700; color:var(--text); }
+.delta-pos { color:var(--green); font-weight:700; }
+.delta-neg { color:var(--red); font-weight:700; }
+.delta-neu { color:var(--text2); }
+
+/* MODAL */
+.modal-overlay { position:fixed; inset:0; background:rgba(26,31,46,.55); backdrop-filter:blur(4px); z-index:200; display:none; align-items:center; justify-content:center; padding:1rem; }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:100%; max-width:700px; max-height:88vh; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) var(--surface); box-shadow:0 20px 60px rgba(107,17,48,.2); }
+.modal-head { padding:1.25rem 1.5rem; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--accent); z-index:1; border-radius:15px 15px 0 0; }
+.modal-title { font-size:1rem; font-weight:800; color:#fff; }
+.modal-close { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+.modal-close:hover { background:rgba(255,255,255,.3); }
+.modal-body { padding:1.5rem; }
+
+/* PRINT BTN PER PAGE */
+.page-print-btn { display:inline-flex; align-items:center; gap:.4rem; background:var(--surface); border:1px solid var(--border); color:var(--text2); font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:600; padding:.42rem .9rem; border-radius:8px; cursor:pointer; transition:all .2s; }
+.page-print-btn:hover { border-color:var(--accent); color:var(--accent); background:#fff; }
+
+/* GRUPO TABS */
+.grupo-tab { background:var(--surface2); border:1px solid var(--border); color:var(--text2); font-family:'DM Mono',monospace; font-size:.68rem; font-weight:600; padding:.25rem .65rem; border-radius:6px; cursor:pointer; transition:all .18s; }
+.grupo-tab:hover { color:var(--accent); border-color:var(--accent); }
+.grupo-tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* PROFILE rows clickable */
+#tbodySt tr { cursor:pointer; }
+#tbodySt tr:hover td { background:rgba(107,17,48,.04) !important; }
+
+/* COPYRIGHT FOOTER */
+.app-footer { text-align:center; padding:1.5rem; border-top:1px solid var(--border); margin-top:2rem; font-size:.72rem; color:var(--text2); }
+.app-footer strong { color:var(--accent); }
+
+@media(max-width:720px) {
+  .charts-grid { grid-template-columns:1fr; }
+  .chart-card.full, .chart-card.wide { grid-column:1; }
+  .kpi-grid { grid-template-columns:1fr 1fr; }
+  .main { padding:1rem; }
+  .compare-slots { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- UPLOAD -->
+<div id="uploadScreen">
+  <div class="upload-wrap">
+    <div class="upload-logo">
+      <span class="upload-logo-badge">DGETI</span>
+      <span class="upload-logo-text">Analizador de Calificaciones</span>
+    </div>
+    <h1 class="upload-title">Analiza tu plantel<br><span>en segundos</span></h1>
+    <p class="upload-sub">Carga el archivo de detalle de calificaciones exportado del sistema DGETI.<br>Todo se procesa localmente — ningún dato sale de tu computadora.</p>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="drop-icon">📂</span>
+      <div class="drop-title">Arrastra tu archivo aquí</div>
+      <div class="drop-sub">o haz clic para seleccionarlo</div>
+      <div class="drop-formats">
+        <span class="fmt-pill">.xls</span><span class="fmt-pill">.xlsx</span><span class="fmt-pill">.csv</span><span class="fmt-pill">HTML-table</span>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx,.csv,.html,.htm" onchange="handleFile(this.files[0])">
+    <div class="upload-features">
+      <div class="feat anim-fade-up d1"><span class="feat-icon">📊</span><div class="feat-text">Dashboard institucional</div></div>
+      <div class="feat anim-fade-up d2"><span class="feat-icon">👤</span><div class="feat-text">Perfil individual por alumno</div></div>
+      <div class="feat anim-fade-up d3"><span class="feat-icon">🔥</span><div class="feat-text">Mapa de calor docente</div></div>
+    </div>
+    <div style="margin-top:2rem;font-size:.68rem;color:rgba(255,255,255,.4)">© Luis Eduardo Ibarra Hernández · CBTis No. 179</div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loadingScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;flex-direction:column;gap:1.5rem;background:linear-gradient(160deg,#6B1130 0%,#3d0a1c 50%,#1a2a1a 100%)">
+  <div style="position:relative;display:flex;align-items:center;justify-content:center">
+    <div class="loading-spinner" style="width:64px;height:64px;border-width:4px;border-color:rgba(255,255,255,.15);border-top-color:#fff"></div>
+    <div style="position:absolute;font-size:1.4rem">📊</div>
+  </div>
+  <div style="text-align:center">
+    <div style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:.3rem">Procesando datos...</div>
+    <div class="loading-text" id="loadingText" style="font-size:.82rem;color:rgba(255,255,255,.6)">Leyendo archivo...</div>
+  </div>
+  <div class="loading-bar-wrap" style="background:rgba(255,255,255,.15)"><div class="loading-bar" id="loadingBar" style="background:linear-gradient(90deg,#f9a8c0,#fff)"></div></div>
+</div>
+
+<!-- MODAL PERFIL -->
+<div class="modal-overlay" id="modalPerfil">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modalNombre">—</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-left">
+        <span class="h-badge">DGETI</span>
+        <div>
+          <div class="h-plantel" id="hPlantel">—</div>
+          <div class="h-clave" id="hClave">—</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.75rem">
+        <span class="h-periodo" id="hPeriodo">—</span>
+        <button class="btn-reset" onclick="resetApp()">↩ Otro archivo</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <button class="nav-btn active" onclick="showPage('dash')"     data-p="dash">📊 Dashboard</button>
+      <button class="nav-btn" onclick="showPage('alumnos')"         data-p="alumnos">👨‍🎓 Alumnos</button>
+      <button class="nav-btn" onclick="showPage('docentes')"        data-p="docentes">👨‍🏫 Docentes</button>
+      <button class="nav-btn" onclick="showPage('carreras')"        data-p="carreras">🏫 Carreras</button>
+      <button class="nav-btn" onclick="showPage('calor')"           data-p="calor">🔥 Mapa de Calor</button>
+      <button class="nav-btn" onclick="showPage('riesgo')"          data-p="riesgo">⚠️ En Riesgo</button>
+      <button class="nav-btn" onclick="showPage('comparar')"        data-p="comparar">↔️ Comparar</button>
+      <button class="nav-btn" onclick="showPage('reportes')"        data-p="reportes">📄 Reportes</button>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div id="page-dash" class="page active">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">📊 Dashboard General</div><div class="sec-sub" id="dashSub">—</div></div>
+        <button class="print-btn" onclick="printPage('dash')">🖨 Imprimir Dashboard</button>
+      </div>
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="charts-grid">
+        <div class="chart-card"><div class="card-title">📈 Distribución de Calificaciones</div><div class="chart-wrap"><canvas id="cHist"></canvas></div></div>
+        <div class="chart-card"><div class="card-title">🎓 Aprobación por Carrera</div><div class="chart-wrap"><canvas id="cCarrApro"></canvas></div></div>
+        <div class="chart-card"><div class="card-title">📚 Asignaturas con más Reprobados</div><div class="chart-wrap tall"><canvas id="cAsigRep"></canvas></div></div>
+        <div class="chart-card">
+          <div class="card-title" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+            <span>👥 Promedio por Grupo / Especialidad</span>
+            <div id="grupoTabs" style="display:flex;gap:.3rem"></div>
+          </div>
+          <div style="font-size:.68rem;color:var(--text3);margin-bottom:.9rem" id="grupoNote"></div>
+          <div class="chart-wrap"><canvas id="cGrupos"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALUMNOS -->
+    <div id="page-alumnos" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">👨‍🎓 Alumnos</div><div class="sec-sub">Haz clic en cualquier alumno para ver su perfil completo</div></div>
+        <button class="print-btn" onclick="printPage('alumnos')">🖨 Imprimir lista filtrada</button>
+      </div>
+      <div class="filter-row">
+        <select class="filter-select" id="fCarrera" onchange="filterStudents()"><option value="">Todas las especialidades</option></select>
+        <select class="filter-select" id="fSemestre" onchange="onSemestreChange('alumnos')"><option value="">Todos los semestres</option></select>
+        <select class="filter-select" id="fTurno" onchange="filterStudents()"><option value="">Todos los turnos</option></select>
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <select class="filter-select" id="fGrupo" onchange="filterStudents()"><option value="">Todos los grupos</option></select>
+          <span id="fGrupoNote" style="display:none;font-size:.68rem;color:var(--orange);background:#FFF3E0;border:1px solid #FFB74D;padding:.22rem .6rem;border-radius:20px;white-space:nowrap">⚠ Grupo no aplica para 3° y 5°</span>
+        </div>
+        <select class="filter-select" id="fStatus" onchange="filterStudents()">
+          <option value="">Todos</option><option value="apro">Solo aprobados</option>
+          <option value="rep">Con reprobadas</option><option value="riesgo">Riesgo (2+)</option>
+        </select>
+        <span class="count-tag" id="stCount">—</span>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <span class="tbl-head-title">Lista de Alumnos</span>
+          <input class="search-input" type="text" placeholder="🔍 Nombre o N° control..." id="searchSt" oninput="filterStudents()">
+        </div>
+        <div class="tbl-wrap">
+          <table id="tblAlumnos">
+            <thead><tr>
+              <th onclick="sortSt('nombre')">Alumno</th><th onclick="sortSt('carrera')">Carrera</th>
+              <th onclick="sortSt('grupo')">Grupo</th><th onclick="sortSt('sem')">Sem</th>
+              <th onclick="sortSt('turno')">Turno</th><th onclick="sortSt('mats')">Materias</th>
+              <th onclick="sortSt('prom')">Promedio</th><th onclick="sortSt('rep')">Reprobadas</th>
+            </tr></thead>
+            <tbody id="tbodySt"></tbody>
+          </table>
+        </div>
+        <div class="pagin" id="paginSt"></div>
+      </div>
+    </div>
+
+    <!-- DOCENTES -->
+    <div id="page-docentes" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">👨‍🏫 Docentes</div><div class="sec-sub">Resultados académicos por docente</div></div>
+        <button class="print-btn" onclick="printPage('docentes')">🖨 Imprimir Docentes</button>
+      </div>
+      <div class="filter-row">
+        <input class="search-input" type="text" placeholder="🔍 Buscar docente..." id="searchDoc" oninput="renderDocentes()" style="width:260px">
+        <select class="filter-select" id="sortDoc" onchange="renderDocentes()">
+          <option value="total">Ordenar: más registros</option>
+          <option value="prom">Ordenar: mejor promedio</option>
+          <option value="rep">Ordenar: más reprobados</option>
+          <option value="apro_pct">Ordenar: % aprobación</option>
+          <option value="nombre">Ordenar: nombre A-Z</option>
+        </select>
+        <span class="count-tag" id="docCount">—</span>
+      </div>
+      <div class="doc-grid" id="docGrid"></div>
+    </div>
+
+    <!-- CARRERAS -->
+    <div id="page-carreras" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">🏫 Carreras y Grupos</div><div class="sec-sub">Comparativa por programa educativo</div></div>
+        <button class="print-btn" onclick="printPage('carreras')">🖨 Imprimir Carreras</button>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card"><div class="card-title">📊 Promedio por Carrera</div><div class="chart-wrap tall"><canvas id="cCarrBar"></canvas></div></div>
+        <div class="chart-card"><div class="card-title">🥧 Distribución de Alumnos</div><div class="chart-wrap"><canvas id="cCarrPie"></canvas></div></div>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <span class="tbl-head-title">Detalle por Carrera</span>
+          <span class="count-tag" id="carrCount">—</span>
+        </div>
+        <div class="tbl-wrap">
+          <table id="tblCarr">
+            <thead><tr>
+              <th onclick="sortTable('carr','n')">Carrera</th>
+              <th onclick="sortTable('carr','turno')">Turno</th>
+              <th onclick="sortTable('carr','al')">Alumnos</th>
+              <th onclick="sortTable('carr','prom')">Promedio</th>
+              <th onclick="sortTable('carr','apro')">Aprobados</th>
+              <th onclick="sortTable('carr','rep')">Reprobados</th>
+              <th onclick="sortTable('carr','np')">NP</th>
+              <th onclick="sortTable('carr','apct')">% Aprobación</th>
+            </tr></thead>
+            <tbody id="tbCarr"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <span class="tbl-head-title">Detalle por Grupo — Semestre 1</span>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <span style="font-size:.7rem;color:var(--text2)">Sem 3 y 5: filtrar por especialidad en sección Alumnos</span>
+            <span class="count-tag" id="grupoCount">—</span>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="tblGrupo">
+            <thead><tr>
+              <th onclick="sortTable('grupo','n')">Grupo</th>
+              <th onclick="sortTable('grupo','sem')">Sem.</th>
+              <th onclick="sortTable('grupo','al')">Alumnos</th>
+              <th onclick="sortTable('grupo','prom')">Promedio</th>
+              <th onclick="sortTable('grupo','apro')">Aprobados</th>
+              <th onclick="sortTable('grupo','rep')">Reprobados</th>
+              <th onclick="sortTable('grupo','np')">NP</th>
+              <th onclick="sortTable('grupo','apct')">% Aprobación</th>
+            </tr></thead>
+            <tbody id="tbGrupo"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAPA DE CALOR -->
+    <div id="page-calor" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">🔥 Mapa de Calor</div><div class="sec-sub">Reprobados por docente y asignatura — más intenso = más reprobados</div></div>
+        <button class="print-btn" onclick="printPage('calor')">🖨 Imprimir Mapa</button>
+      </div>
+      <div class="filter-row">
+        <select class="filter-select" id="hCalorCarrera" onchange="buildHeatmap()"><option value="">Todas las especialidades</option></select>
+        <select class="filter-select" id="hCalorSem" onchange="buildHeatmap()"><option value="">Todos los semestres</option></select>
+        <span class="count-tag" id="hmInfo">—</span>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-head"><span class="tbl-head-title">Reprobados: Docente × Asignatura</span></div>
+        <div class="tbl-wrap heatmap-wrap" id="hmWrap"></div>
+      </div>
+    </div>
+
+    <!-- EN RIESGO -->
+    <div id="page-riesgo" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">⚠️ Alumnos en Riesgo</div><div class="sec-sub">Distribución por número de materias reprobadas</div></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="print-btn" onclick="printPage('riesgo')">🖨 Imprimir filtrados</button>
+          <button class="btn-sec" onclick="exportRiesgoExcel()">📥 Exportar Excel</button>
+        </div>
+      </div>
+      <div class="kpi-grid" id="riesgoKpis"></div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+        <div class="card-title" style="margin-bottom:1rem">📊 Desglose por materias reprobadas</div>
+        <div id="riesgoDesglose"></div>
+      </div>
+      <div class="filter-row">
+        <select class="filter-select" id="fRCarrera" onchange="filterRiesgo()"><option value="">Todas las especialidades</option></select>
+        <select class="filter-select" id="fRSemestre" onchange="onSemestreChange('riesgo')"><option value="">Todos los semestres</option></select>
+        <select class="filter-select" id="fRTurno" onchange="filterRiesgo()"><option value="">Todos los turnos</option></select>
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <select class="filter-select" id="fRGrupo" onchange="filterRiesgo()"><option value="">Todos los grupos</option></select>
+          <span id="fRGrupoNote" style="display:none;font-size:.68rem;color:var(--orange);background:#FFF3E0;border:1px solid #FFB74D;padding:.22rem .6rem;border-radius:20px;white-space:nowrap">⚠ Grupo no aplica para 3° y 5°</span>
+        </div>
+        <select class="filter-select" id="fRNivel" onchange="filterRiesgo()">
+          <option value="">Todos los niveles</option><option value="1">1 reprobada</option>
+          <option value="2">2 reprobadas</option><option value="3">3 reprobadas</option><option value="4">+3 reprobadas</option>
+        </select>
+        <span class="count-tag" id="riesgoCount">—</span>
+      </div>
+      <div class="risk-grid" id="riskGrid"></div>
+    </div>
+
+    <!-- COMPARAR -->
+    <div id="page-comparar" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">↔️ Comparar Períodos</div><div class="sec-sub">Carga dos archivos para ver la evolución entre períodos</div></div>
+        <button class="print-btn" onclick="printPage('comparar')">🖨 Imprimir Comparativa</button>
+      </div>
+      <div class="compare-slots">
+        <div class="compare-slot" id="slot1" onclick="document.getElementById('fileComp1').click()">
+          <div class="compare-slot-label">Período A (anterior)</div>
+          <div class="compare-slot-name" id="slotName1">📂 Clic para cargar</div>
+          <input type="file" id="fileComp1" style="display:none" accept=".xls,.xlsx,.csv,.html,.htm" onchange="loadCompare(1,this.files[0])">
+        </div>
+        <div class="compare-slot" id="slot2" onclick="document.getElementById('fileComp2').click()">
+          <div class="compare-slot-label">Período B (actual)</div>
+          <div class="compare-slot-name" id="slotName2">📂 Clic para cargar</div>
+          <input type="file" id="fileComp2" style="display:none" accept=".xls,.xlsx,.csv,.html,.htm" onchange="loadCompare(2,this.files[0])">
+        </div>
+      </div>
+      <div id="compareResults" style="display:none">
+        <div class="kpi-grid" id="compareKpis"></div>
+        <div class="charts-grid">
+          <div class="chart-card full"><div class="card-title">📈 Evolución de Promedio por Carrera</div><div class="chart-wrap"><canvas id="cCompCarr"></canvas></div></div>
+          <div class="chart-card full"><div class="card-title">⚠️ Evolución de Reprobados por Carrera</div><div class="chart-wrap"><canvas id="cCompRep"></canvas></div></div>
+        </div>
+        <div class="tbl-card">
+          <div class="tbl-head"><span class="tbl-head-title">Tabla comparativa por carrera</span></div>
+          <div class="tbl-wrap"><table><thead><tr><th>Carrera</th><th>Prom. A</th><th>Prom. B</th><th>Δ Prom.</th><th>Rep. A</th><th>Rep. B</th><th>Δ Rep.</th><th>% Apr. A</th><th>% Apr. B</th></tr></thead><tbody id="tbCompare"></tbody></table></div>
+        </div>
+      </div>
+      <div id="compareHint" style="text-align:center;padding:3rem;color:var(--text2);font-size:.9rem">Carga los dos archivos para ver la comparativa</div>
+    </div>
+
+
+    <!-- REPORTES -->
+    <div id="page-reportes" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">📄 Reportes PDF</div><div class="sec-sub">Genera reportes con formato oficial para dirección escolar</div></div>
+      </div>
+      <div class="report-grid">
+        <div class="report-card"><h3>📊 Reporte General</h3><p>Resumen ejecutivo con KPIs institucionales, distribución de calificaciones y rendimiento por carrera.</p><button class="btn-prim" onclick="genPDF('general')">⬇ Descargar PDF</button></div>
+        <div class="report-card"><h3>⚠️ Reporte de Riesgo</h3><p>Lista de alumnos con materias reprobadas, desglosada por nivel. Incluye semestre, turno y grupo.</p><button class="btn-prim" onclick="genPDF('riesgo')">⬇ Descargar PDF</button></div>
+        <div class="report-card"><h3>👨‍🏫 Reporte Docentes</h3><p>Desempeño comparativo con promedio, aprobación y semáforo de rendimiento por docente.</p><button class="btn-prim" onclick="genPDF('docentes')">⬇ Descargar PDF</button></div>
+        <div class="report-card"><h3>🏫 Reporte por Carrera</h3><p>Análisis por programa educativo con estadísticas detalladas y asignaturas críticas.</p><button class="btn-prim" onclick="genPDF('carreras')">⬇ Descargar PDF</button></div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="copyright">
+    © Luis Eduardo Ibarra Hernández · CBTis No. 179 · DGETI · SEP —
+    Analizador de Calificaciones Institucional
+  </footer>
+</div>
+
+<script>
+
+// ─────────────────────────────────────────────
+// FILE HANDLING & PARSING
+// ─────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e=>{ e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e=>{ e.preventDefault(); dropZone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+
+function handleFile(file){
+  if(!file) return;
+  document.getElementById('uploadScreen').style.display='none';
+  const ls = document.getElementById('loadingScreen');
+  ls.style.display='flex';
+  setLoad(10,'Leyendo archivo...');
+
+  const reader = new FileReader();
+  reader.onerror = ()=>{ alert('No se pudo leer el archivo.'); resetApp(); };
+  reader.onload = async (e) => {
+    let txt = e.target.result;
+    if(txt.includes('\uFFFD')){
+      const r2 = new FileReader();
+      r2.onerror = ()=>{ alert('No se pudo leer el archivo.'); resetApp(); };
+      r2.onload = async (e2) => { await processContent(e2.target.result); };
+      r2.readAsText(file, 'iso-8859-1');
+      return;
+    }
+    await processContent(txt);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+async function processContent(content){
+  const ls = document.getElementById('loadingScreen');
+  try {
+    setLoad(30, 'Detectando formato...');
+    await sleep(80);
+    let rows = [];
+    if(content.trim().startsWith('<') || content.toLowerCase().includes('<table')){
+      rows = parseHTMLTable(content);
+    } else {
+      rows = parseCSV(content);
+    }
+    setLoad(55, 'Procesando registros...');
+    await sleep(100);
+    if(rows.length < 2){ alert('No se detectaron datos en el archivo.'); resetApp(); return; }
+    setLoad(75, 'Calculando estadísticas...');
+    await sleep(100);
+    DS = buildDataset(rows);
+    setLoad(95, 'Construyendo visualizaciones...');
+    await sleep(100);
+    ls.style.display='none';
+    document.getElementById('appScreen').style.display='block';
+    initApp();
+    setLoad(100,'Listo');
+  } catch(err){
+    console.error(err);
+    alert('Error al procesar el archivo: '+err.message);
+    resetApp();
+  }
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── HTML TABLE PARSER ──
+function parseHTMLTable(html){
+  const rows = [];
+  const trReg = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  const tdReg = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+  let trMatch;
+  while((trMatch = trReg.exec(html)) !== null){
+    const cells = [];
+    let tdMatch;
+    const tdReg2 = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    while((tdMatch = tdReg2.exec(trMatch[1])) !== null){
+      cells.push(stripTags(tdMatch[1]).trim());
+    }
+    if(cells.length > 3) rows.push(cells);
+  }
+  return rows;
+}
+
+function stripTags(s){ return s.replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim(); }
+
+// ── CSV PARSER ──
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  return lines.map(l=>{
+    const cells=[]; let cur='', inQ=false;
+    for(let i=0;i<l.length;i++){
+      const c=l[i];
+      if(c==='"'){ inQ=!inQ; }
+      else if((c===','||c==='\t')&&!inQ){ cells.push(cur.trim()); cur=''; }
+      else cur+=c;
+    }
+    cells.push(cur.trim());
+    return cells;
+  });
+}
+
+// ── COLUMN DETECTOR ──
+// Detects column indices automatically from headers
+function detectCols(headers){
+  const h = headers.map(s=>s.toUpperCase().replace(/\s+/g,' ').trim());
+  const find = (...keys) => {
+    for(const k of keys){
+      const idx = h.findIndex(x=>x.includes(k));
+      if(idx>=0) return idx;
+    }
+    return -1;
+  };
+  return {
+    plantel:   find('PLANTEL','ESCUELA','CENTRO'),
+    clave:     find('CLV_CENTRO','CLAVE','CVE'),
+    carrera:   find('CARRERA','PROG','ESPECIALIDAD'),
+    generacion:find('GENERACION','GEN'),
+    turno:     find('TURNO'),
+    semestre:  find('SEMESTRE','SEM'),
+    grupo:     find('GRUPO'),
+    nc:        find('NO CONTROL','N\xBA CONTROL','CONTROL','MATRICULA'),
+    nombre:    find('NOMBRE'),
+    paterno:   find('PATERNO','AP_PAT','PRIMER'),
+    materno:   find('MATERNO','AP_MAT','SEGUNDO'),
+    asignatura:find('ASIGNATURA','MATERIA','NOMBRE ASIG'),
+    docente:   find('DOCENTE','NOMBRE DOCENTE','MAESTRO'),
+    p1:        find('PERIODO 1','P1','PARCIAL 1','PRIMER PERIODO'),
+    p2:        find('PERIODO 2','P2','PARCIAL 2','SEGUNDO PERIODO'),
+    p3:        find('PERIODO 3','P3','PARCIAL 3','TERCER PERIODO'),
+    cal:       find('CALIFICACION','CALIFIC','FINAL','PROMEDIO FINAL'),
+    a1:        find('ASISTENCIA PERIODO 1','ASIST1','ASIST P1'),
+    a2:        find('ASISTENCIA PERIODO 2','ASIST2','ASIST P2'),
+    a3:        find('ASISTENCIA PERIODO 3','ASIST3','ASIST P3'),
+    tipo:      find('TIPO ACRED','ACRED','TIPO'),
+    periodo:   find('PERIODO','SEMESTRE ESCOLAR'),
+    firmado:   find('FIRMADO','FIRMA'),
+  };
+}
+
+function sf(s){ if(!s||s==='') return 0; const n=parseFloat(s); return isNaN(n)?0:n; }
+function normCarrera(s){
+  const u=s.toUpperCase();
+  if(u.includes('ARQUITECTURA')) return 'ARQUITECTURA';
+  if(u.includes('ELECTRICIDAD')) return 'ELECTRICIDAD';
+  if(u.includes('MECATR')) return 'MECATRÓNICA';
+  if(u.includes('PROGRAMAC')) return 'PROGRAMACIÓN';
+  if(u.includes('TRABAJO SOCIAL')) return 'TRABAJO SOCIAL';
+  if(u.includes('RECURSOS HUMANOS')||u.includes('ADMINISTRAC')) return 'ADM. RR.HH.';
+  if(u.includes('BASICO')||u.includes('PROPEDEU')||u.includes('BSICO')) return 'BÁS./PROPEDÉUTICO';
+  // fallback: capitalize and trim
+  return s.trim().split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+}
+
+// ── MAIN DATASET BUILDER ──
+function buildDataset(rows){
+  const headers = rows[0];
+  const c = detectCols(headers);
+
+  const g = (row, idx) => idx>=0 && idx<row.length ? row[idx] : '';
+  const fullName = (row) => {
+    if(c.paterno>=0 && c.materno>=0){
+      return [g(row,c.nombre),g(row,c.paterno),g(row,c.materno)].join(' ').trim();
+    }
+    return g(row,c.nombre).trim();
+  };
+
+  // auto-detect periodo & plantel
+  let plantelName = 'Plantel DGETI', clavePlantel = '';
+  let periodoName = '';
+  const data = [];
+
+  for(let i=1;i<rows.length;i++){
+    const row = rows[i];
+    if(row.length < 5) continue;
+    const carRaw = g(row,c.carrera);
+    const cal = sf(g(row,c.cal));
+    const nc_val = g(row,c.nc);
+    if(!nc_val && !carRaw) continue;
+
+    // Excluir MÓDULO I, II, III... (registros sin docente real / módulos padre)
+    const asigRaw = g(row,c.asignatura).trim().toUpperCase();
+    if(asigRaw.includes('DULO ') || asigRaw.startsWith('MODULO') || asigRaw.startsWith('MÓDULO')) continue;
+
+    if(!plantelName || plantelName==='Plantel DGETI'){
+      const pv = g(row,c.plantel);
+      if(pv && pv.length>2) plantelName=pv.trim().toUpperCase();
+    }
+    if(!clavePlantel){ const cv=g(row,c.clave); if(cv&&cv.length>2) clavePlantel=cv.trim().toUpperCase(); }
+    if(!periodoName){ const pn=g(row,c.periodo); if(pn&&pn.length>2) periodoName=pn.trim().toUpperCase(); }
+
+    data.push({
+      plantel: g(row,c.plantel).trim(),
+      carrera: normCarrera(carRaw||'SIN CARRERA'),
+      turno:   g(row,c.turno).trim(),
+      semestre:g(row,c.semestre).trim(),
+      grupo:   g(row,c.grupo).trim(),
+      nc:      nc_val.trim(),
+      nombre:  fullName(row),
+      asignatura: g(row,c.asignatura).trim()||'SIN ASIGNATURA',
+      docente:    (g(row,c.docente).trim()||'SIN ASIGNAR'),
+      p1: sf(g(row,c.p1)), p2: sf(g(row,c.p2)), p3: sf(g(row,c.p3)),
+      cal: cal,
+      a1: sf(g(row,c.a1)), a2: sf(g(row,c.a2)), a3: sf(g(row,c.a3)),
+      tipo:    g(row,c.tipo).trim(),
+      firmado: g(row,c.firmado).trim(),
+    });
+  }
+
+  if(!periodoName) periodoName = 'PERÍODO ESCOLAR';
+
+  // ── AGGREGATIONS ──
+  // Students
+  const uniq = {};
+  for(const d of data){
+    if(!d.nc) continue;
+    if(!uniq[d.nc]) uniq[d.nc]={nombre:d.nombre,carrera:d.carrera,grupo:d.grupo,sem:d.semestre,turno:d.turno,califs:[],mats:new Set()};
+    uniq[d.nc].califs.push(d.cal);
+    uniq[d.nc].mats.add(d.asignatura);
+  }
+  const students = [];
+  for(const [nc,v] of Object.entries(uniq)){
+    const cc=v.califs.filter(x=>x>0);
+    students.push({nc,nombre:v.nombre,carrera:v.carrera,grupo:v.grupo,sem:v.sem,turno:v.turno,
+      prom:cc.length?Math.round(cc.reduce((a,b)=>a+b,0)/cc.length*100)/100:0,
+      mats:v.mats.size,rep:cc.filter(x=>x<6).length});
+  }
+
+  // Docentes
+  const byDoc = {};
+  for(const d of data){
+    if(!d.docente || d.docente === 'SIN ASIGNAR') continue;
+    if(!byDoc[d.docente]) byDoc[d.docente]={cals:[],asigs:new Set()};
+    byDoc[d.docente].cals.push(d.cal);
+    byDoc[d.docente].asigs.add(d.asignatura);
+  }
+  const docentes = [];
+  for(const [n,v] of Object.entries(byDoc)){
+    const vc=v.cals.filter(x=>x>0);
+    docentes.push({nombre:n,total:v.cals.length,prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
+      apro:v.cals.filter(x=>x>=6).length,rep:v.cals.filter(x=>x>0&&x<6).length,np:v.cals.filter(x=>x===0).length,asigs:v.asigs.size});
+  }
+  docentes.sort((a,b)=>b.total-a.total);
+
+  // Carreras — agrupado por carrera (todos los turnos consolidados)
+  const byC = {};
+  for(const d of data){
+    const k=d.carrera;
+    if(!byC[k]) byC[k]={cals:[],ncs:new Set(),turnos:new Set()};
+    byC[k].cals.push(d.cal);
+    byC[k].ncs.add(d.nc);
+    if(d.turno) byC[k].turnos.add(d.turno.toLowerCase());
+  }
+  const carreras = [];
+  for(const [n,v] of Object.entries(byC)){
+    const vc=v.cals.filter(x=>x>0);
+    carreras.push({n, turno:[...v.turnos].sort().join(' / '),
+      al:v.ncs.size, prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
+      apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.cals.filter(x=>x===0).length});
+  }
+
+  // Grupos — incluye semestre para contexto
+  const byG = {};
+  for(const d of data){
+    const k=d.grupo||'S/G';
+    if(!byG[k]) byG[k]={cals:[],sem:d.semestre,ncs:new Set()};
+    byG[k].cals.push(d.cal);
+    byG[k].ncs.add(d.nc);
+  }
+  const grupos = Object.entries(byG).map(([n,v])=>{
+    const vc=v.cals.filter(x=>x>0);
+    return {n, sem:v.sem, al:v.ncs.size, total:v.cals.length,
+      prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
+      apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.cals.filter(x=>x===0).length};
+  }).sort((a,b)=>a.n.localeCompare(b.n));
+
+  // Hist
+  const hist={NP:0,'1-5':0,'6':0,'7':0,'8':0,'9':0,'10':0};
+  for(const d of data){
+    const c=d.cal;
+    if(c===0) hist.NP++;
+    else if(c<6) hist['1-5']++;
+    else if(c<7) hist['6']++;
+    else if(c<8) hist['7']++;
+    else if(c<9) hist['8']++;
+    else if(c<10) hist['9']++;
+    else hist['10']++;
+  }
+
+  // Asig rep
+  const byA = {};
+  for(const d of data){
+    if(!byA[d.asignatura]) byA[d.asignatura]={cals:[]};
+    byA[d.asignatura].cals.push(d.cal);
+  }
+  const asigRep = Object.entries(byA).map(([n,v])=>{
+    const vc=v.cals.filter(x=>x>0);
+    return [n,v.cals.filter(x=>x>0&&x<6).length,v.cals.length,vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0];
+  }).sort((a,b)=>b[1]-a[1]).slice(0,12);
+
+  const total=data.length, con=data.filter(d=>d.cal>0);
+  return {
+    meta:{plantel:plantelName,clave:clavePlantel,periodo:periodoName,total,alumnos:students.length,docentes:docentes.length,asignaturas:Object.keys(byA).length},
+    kpis:{prom:con.length?Math.round(con.reduce((s,d)=>s+d.cal,0)/con.length*100)/100:0,
+      apro:data.filter(d=>d.cal>=6).length,apro_pct:Math.round(data.filter(d=>d.cal>=6).length/total*100*10)/10,
+      rep:data.filter(d=>d.cal>0&&d.cal<6).length,rep_pct:Math.round(data.filter(d=>d.cal>0&&d.cal<6).length/total*100*10)/10,
+      np:data.filter(d=>d.cal===0).length,np_pct:Math.round(data.filter(d=>d.cal===0).length/total*100*10)/10},
+    hist,carreras,grupos,docentes,students,asigRep,rawRows:data
+  };
+}
+
+
+
+
+// ─────────────────────────────────────────────
+// ANIMATION HELPERS
+// ─────────────────────────────────────────────
+function animateCounters(){
+  document.querySelectorAll('.kpi-value[data-target]').forEach(el=>{
+    const target = parseFloat(el.dataset.target);
+    const isFloat = el.dataset.target.includes('.');
+    const duration = 900;
+    const start = performance.now();
+    const from = 0;
+    function step(now){
+      const p = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      const val = from + (target - from) * ease;
+      el.textContent = isFloat ? val.toFixed(2) : Math.round(val).toLocaleString();
+      if(p < 1) requestAnimationFrame(step);
+      else el.textContent = isFloat ? target.toFixed(2) : target.toLocaleString();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function animateNumber(el, target, isFloat=false, duration=800){
+  const start = performance.now();
+  function step(now){
+    const p = Math.min((now-start)/duration,1);
+    const ease = 1-Math.pow(1-p,3);
+    el.textContent = isFloat ? (target*ease).toFixed(2) : Math.round(target*ease).toLocaleString();
+    if(p<1) requestAnimationFrame(step);
+    else el.textContent = isFloat ? target.toFixed(2) : target.toLocaleString();
+  }
+  requestAnimationFrame(step);
+}
+
+// ─────────────────────────────────────────────
+// APP INIT
+// ─────────────────────────────────────────────
+
+function initApp(){
+  document.getElementById('hPlantel').textContent=DS.meta.plantel;
+  document.getElementById('hClave').textContent=DS.meta.clave;
+  document.getElementById('hPeriodo').textContent=DS.meta.periodo;
+  Object.values(charts).forEach(c=>c.destroy()); charts={};
+  buildDash(); buildAlumnosFilters(); filterStudents();
+  renderDocentes(); buildCarreras(); buildRiesgo(); buildHeatmapFilters();
+  showPage('dash');
+}
+
+function resetApp(){
+  DS=null; DS2=null;
+  document.getElementById('appScreen').style.display='none';
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('uploadScreen').style.display='flex';
+  document.getElementById('fileInput').value='';
+}
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active','entering'); });
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const target = document.getElementById('page-'+name);
+  if(!target){ console.warn('Page not found: page-'+name); return; }
+  target.classList.add('active');
+  // Trigger stagger animation
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      target.classList.add('entering');
+      setTimeout(()=> target.classList.remove('entering'), 900);
+    });
+  });
+  document.querySelector(`[data-p="${name}"]`).classList.add('active');
+  if(name==='calor') buildHeatmap();
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function calBadge(c){
+  if(c===0) return `<span class="cal-badge cal-np">NP</span>`;
+  if(c<6)  return `<span class="cal-badge cal-rep">${c.toFixed(1)}</span>`;
+  if(c<7)  return `<span class="cal-badge cal-6">${c.toFixed(1)}</span>`;
+  if(c<8)  return `<span class="cal-badge cal-7">${c.toFixed(1)}</span>`;
+  if(c<9)  return `<span class="cal-badge cal-8">${c.toFixed(1)}</span>`;
+  if(c<10) return `<span class="cal-badge cal-9">${c.toFixed(1)}</span>`;
+  return `<span class="cal-badge cal-10">${c.toFixed(1)}</span>`;
+}
+function pct(a,b){ return b?Math.round(a/b*100):0; }
+function colorPct(p){ return p>=85?'var(--green)':p>=70?'var(--yellow)':'var(--red)'; }
+function capName(s){ return s.toLowerCase().split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' '); }
+function mkChart(id,type,data,opts){
+  if(charts[id]) charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),{type,data,options:{responsive:true,maintainAspectRatio:false,...opts}});
+  return charts[id];
+}
+
+// ─────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────
+function buildDash(){
+  const {meta,kpis,hist,carreras,asigRep}=DS;
+  document.getElementById('dashSub').textContent=`${meta.periodo} · ${meta.alumnos.toLocaleString()} alumnos · ${meta.docentes} docentes · ${meta.asignaturas} asignaturas · ${meta.total.toLocaleString()} registros`;
+  document.getElementById('kpiGrid').innerHTML=`
+    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--accent)"></div><div class="kpi-glow" style="background:var(--accent)"></div><div class="kpi-label">Promedio General</div><div class="kpi-value" style="color:var(--accent)" data-target="${kpis.prom}">0</div><div class="kpi-sub">Escala 0–10</div></div>
+    <div class="kpi"><div class="kpi-accent-bar" style="background:#1565c0"></div><div class="kpi-glow" style="background:#1565c0"></div><div class="kpi-label">Alumnos</div><div class="kpi-value" style="color:#1565c0" data-target="${meta.alumnos}">0</div><div class="kpi-sub">${meta.total.toLocaleString()} registros</div></div>
+    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--green)"></div><div class="kpi-glow" style="background:var(--green)"></div><div class="kpi-label">Aprobados</div><div class="kpi-value" style="color:var(--green)" data-target="${kpis.apro_pct}">0</div><div class="kpi-sub">${kpis.apro.toLocaleString()} calificaciones · <strong>%</strong></div></div>
+    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--red)"></div><div class="kpi-glow" style="background:var(--red)"></div><div class="kpi-label">Reprobados</div><div class="kpi-value" style="color:var(--red)" data-target="${kpis.rep_pct}">0</div><div class="kpi-sub">${kpis.rep.toLocaleString()} calificaciones · <strong>%</strong></div></div>
+    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--yellow)"></div><div class="kpi-glow" style="background:var(--yellow)"></div><div class="kpi-label">No Presentaron</div><div class="kpi-value" style="color:var(--yellow)" data-target="${kpis.np_pct}">0</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros · <strong>%</strong></div></div>
+    <div class="kpi"><div class="kpi-accent-bar" style="background:#7b1fa2"></div><div class="kpi-glow" style="background:#7b1fa2"></div><div class="kpi-label">Docentes</div><div class="kpi-value" style="color:#7b1fa2" data-target="${meta.docentes}">0</div><div class="kpi-sub">${meta.asignaturas} asignaturas</div></div>
+  `;
+  animateCounters();
+  mkChart('cHist','bar',{labels:Object.keys(hist),datasets:[{data:Object.values(hist),backgroundColor:['#9e9e9e','#b71c1c','#2e7d32','#1565c0','#0277bd','#006064','#1b5e20'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}});
+  mkChart('cCarrApro','bar',{labels:carreras.map(c=>c.n.length>14?c.n.slice(0,13)+'…':c.n),datasets:[{label:'Aprobados %',data:carreras.map(c=>pct(c.apro,c.apro+c.rep+c.np)),backgroundColor:'rgba(46,125,50,.8)',borderRadius:4},{label:'Reprobados %',data:carreras.map(c=>pct(c.rep,c.apro+c.rep+c.np)),backgroundColor:'rgba(198,40,40,.7)',borderRadius:4}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:30}},y:{grid:GRID,ticks:TICK,max:100}}});
+  mkChart('cAsigRep','bar',{labels:asigRep.slice(0,10).map(a=>a[0].length>32?a[0].slice(0,31)+'…':a[0]),datasets:[{data:asigRep.slice(0,10).map(a=>a[1]),backgroundColor:'rgba(198,40,40,.75)',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:{display:false},ticks:TICK}}});
+  const semsList=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const tabsEl=document.getElementById('grupoTabs');
+  tabsEl.innerHTML=semsList.map((s,i)=>`<button class="grupo-tab ${i===0?'on':''}" onclick="switchGrupoTab('${s}',this)">Sem ${s}</button>`).join('');
+  if(semsList.length) switchGrupoTab(semsList[0],tabsEl.firstChild);
+}
+
+function switchGrupoTab(sem,btn){
+  document.querySelectorAll('.grupo-tab').forEach(t=>t.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  const semNum=Number(sem);
+  const note=document.getElementById('grupoNote');
+  note.innerHTML=semNum<=1?'Grupos 1A–1F · Componente Básico y Propedéutico':`Semestre ${sem} · Agrupado por <strong style="color:var(--accent2)">especialidad</strong>`;
+  let labels,values,colors;
+  if(semNum<=1){
+    const byG={};
+    DS.students.filter(s=>String(s.sem)===String(sem)).forEach(s=>{ const k=s.grupo||'S/G'; if(!byG[k]) byG[k]=[]; byG[k].push(s.prom); });
+    const ents=Object.entries(byG).sort((a,b)=>a[0].localeCompare(b[0]));
+    labels=ents.map(([k])=>k); values=ents.map(([,v])=>{ const f=v.filter(x=>x>0); return f.length?Math.round(f.reduce((a,b)=>a+b)/f.length*100)/100:0; });
+  } else {
+    const byC={};
+    DS.students.filter(s=>String(s.sem)===String(sem)).forEach(s=>{ const k=s.carrera; if(!byC[k]) byC[k]=[]; byC[k].push(s.prom); });
+    const ents=Object.entries(byC).sort((a,b)=>a[0].localeCompare(b[0]));
+    labels=ents.map(([k])=>k.length>18?k.slice(0,17)+'…':k); values=ents.map(([,v])=>{ const f=v.filter(x=>x>0); return f.length?Math.round(f.reduce((a,b)=>a+b)/f.length*100)/100:0; });
+  }
+  colors=values.map(v=>v>=8?'rgba(34,197,94,.8)':v>=7?'rgba(79,142,247,.8)':v>=6?'rgba(251,191,36,.8)':'rgba(248,113,113,.8)');
+  mkChart('cGrupos','bar',{labels,datasets:[{label:'Promedio',data:values,backgroundColor:colors,borderRadius:5}]},{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`Promedio: ${ctx.parsed.y}`}}},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:20}},y:{grid:GRID,ticks:TICK,min:5,max:10}}});
+}
+
+// ─────────────────────────────────────────────
+// ALUMNOS
+// ─────────────────────────────────────────────
+function buildAlumnosFilters(){
+  const carrs=[...new Set(DS.students.map(s=>s.carrera))].sort();
+  const sems=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const turnos=[...new Set(DS.students.map(s=>s.turno).filter(Boolean))].sort();
+  const fc=document.getElementById('fCarrera'); fc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; fc.appendChild(o); });
+  const fsem=document.getElementById('fSemestre'); fsem.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent='Semestre '+s; fsem.appendChild(o); });
+  const ft=document.getElementById('fTurno'); ft.innerHTML='<option value="">Todos los turnos</option>';
+  turnos.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.textContent=t; ft.appendChild(o); });
+  rebuildGrupoSelect('alumnos','');
+}
+
+function rebuildGrupoSelect(ctx,sem){
+  const selId=ctx==='alumnos'?'fGrupo':'fRGrupo';
+  const noteId=ctx==='alumnos'?'fGrupoNote':'fRGrupoNote';
+  const sel=document.getElementById(selId); const note=document.getElementById(noteId);
+  const semNum=sem===''?1:Number(sem);
+  const noAplica=semNum>1;
+  if(noAplica){ sel.style.opacity='.35'; sel.style.pointerEvents='none'; sel.innerHTML='<option value="">— no aplica —</option>'; note.style.display='inline-flex'; }
+  else{
+    sel.style.opacity=''; sel.style.pointerEvents=''; note.style.display='none';
+    const srcSem=sem||'1';
+    const grps=[...new Set(DS.students.filter(s=>String(s.sem)===String(srcSem)).map(s=>s.grupo).filter(Boolean))].sort();
+    sel.innerHTML='<option value="">Todos los grupos</option>';
+    grps.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; sel.appendChild(o); });
+  }
+}
+
+function onSemestreChange(ctx){
+  const semVal=ctx==='alumnos'?document.getElementById('fSemestre').value:document.getElementById('fRSemestre').value;
+  rebuildGrupoSelect(ctx,semVal);
+  if(ctx==='alumnos') filterStudents(); else filterRiesgo();
+}
+
+function filterStudents(){
+  const q=document.getElementById('searchSt').value.toLowerCase();
+  const fc=document.getElementById('fCarrera').value;
+  const fg=document.getElementById('fGrupo').value;
+  const fsem=document.getElementById('fSemestre').value;
+  const ft=document.getElementById('fTurno').value;
+  const fs=document.getElementById('fStatus').value;
+  const noAplica=fsem!==''&&Number(fsem)>1;
+  stFiltered=DS.students.filter(s=>{
+    if(q&&!s.nombre.toLowerCase().includes(q)&&!s.nc.includes(q)) return false;
+    if(fc&&s.carrera!==fc) return false;
+    if(fsem&&String(s.sem)!==String(fsem)) return false;
+    if(ft&&s.turno!==ft) return false;
+    if(fg&&!noAplica&&s.grupo!==fg) return false;
+    if(fs==='apro'&&s.rep>0) return false;
+    if(fs==='rep'&&s.rep===0) return false;
+    if(fs==='riesgo'&&s.rep<2) return false;
+    return true;
+  });
+  stPage=1; renderStTable();
+}
+
+function sortSt(f){
+  if(stSort.f===f) stSort.d*=-1; else {stSort.f=f;stSort.d=1;}
+  stFiltered.sort((a,b)=>typeof a[f]==='string'?a[f].localeCompare(b[f])*stSort.d:(a[f]-b[f])*stSort.d);
+  stPage=1; renderStTable();
+}
+
+function renderStTable(){
+  document.getElementById('stCount').textContent=`${stFiltered.length} alumnos`;
+  const start=(stPage-1)*PAGE,end=start+PAGE,pg=stFiltered.slice(start,end);
+  document.getElementById('tbodySt').innerHTML=pg.map(s=>`<tr onclick="openPerfil('${s.nc}')">
+    <td><div style="font-weight:600;font-size:.82rem;color:var(--white)">${capName(s.nombre)}</div><div style="font-size:.68rem;color:var(--text2);font-family:'DM Mono',monospace">${s.nc}</div></td>
+    <td style="font-size:.77rem">${s.carrera}</td>
+    <td style="font-family:'DM Mono',monospace;font-weight:700;font-size:.82rem">${s.grupo||'—'}</td>
+    <td style="text-align:center;font-family:'DM Mono',monospace">${s.sem}</td>
+    <td style="font-size:.73rem;color:var(--text2)">${s.turno}</td>
+    <td style="text-align:center;font-family:'DM Mono',monospace">${s.mats}</td>
+    <td style="text-align:center">${calBadge(s.prom)}</td>
+    <td style="text-align:center">${s.rep>0?`<span style="color:var(--red);font-weight:800;font-family:'DM Mono',monospace">${s.rep}</span>`:`<span style="color:var(--green)">✓</span>`}</td>
+  </tr>`).join('');
+  renderPagin();
+}
+
+function renderPagin(){
+  const total=Math.ceil(stFiltered.length/PAGE);
+  const el=document.getElementById('paginSt');
+  if(total<=1){el.innerHTML='';return;}
+  const range=[];
+  for(let i=Math.max(1,stPage-2);i<=Math.min(total,stPage+2);i++) range.push(i);
+  let h=`<button class="pg-btn" onclick="goSt(${Math.max(1,stPage-1)})">‹</button>`;
+  if(range[0]>1){h+=`<button class="pg-btn" onclick="goSt(1)">1</button>`;if(range[0]>2)h+=`<span class="pg-info">…</span>`;}
+  range.forEach(i=>h+=`<button class="pg-btn ${i===stPage?'on':''}" onclick="goSt(${i})">${i}</button>`);
+  if(range.at(-1)<total){if(range.at(-1)<total-1)h+=`<span class="pg-info">…</span>`;h+=`<button class="pg-btn" onclick="goSt(${total})">${total}</button>`;}
+  h+=`<button class="pg-btn" onclick="goSt(${Math.min(total,stPage+1)})">›</button><span class="pg-info">${stPage}/${total}</span>`;
+  el.innerHTML=h;
+}
+function goSt(n){stPage=n;renderStTable();}
+
+// ─────────────────────────────────────────────
+// PERFIL INDIVIDUAL
+// ─────────────────────────────────────────────
+function openPerfil(nc){
+  const st=DS.students.find(s=>s.nc===nc); if(!st) return;
+  const rows=DS.rawRows.filter(r=>r.nc===nc);
+  document.getElementById('modalNombre').textContent=capName(st.nombre);
+  const apro=rows.filter(r=>r.cal>=6), rep=rows.filter(r=>r.cal>0&&r.cal<6), np=rows.filter(r=>r.cal===0);
+  const prom=st.prom;
+  const promColor=prom>=8?'#22c55e':prom>=6?'#4f8ef7':prom>0?'#f87171':'#8892a4';
+  document.getElementById('modalBody').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.5rem">
+      <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Promedio</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:${promColor}">${prom}</div></div>
+      <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Aprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">${apro.length}</div></div>
+      <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Reprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">${rep.length}</div></div>
+      <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">NP</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--text2)">${np.length}</div></div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;font-size:.75rem;color:var(--text2)">
+      <span style="background:var(--surface2);padding:.25rem .7rem;border-radius:20px">🏫 ${st.carrera}</span>
+      <span style="background:var(--surface2);padding:.25rem .7rem;border-radius:20px">📅 Semestre ${st.sem}</span>
+      <span style="background:var(--surface2);padding:.25rem .7rem;border-radius:20px">👥 Grupo ${st.grupo||'—'}</span>
+      <span style="background:var(--surface2);padding:.25rem .7rem;border-radius:20px">🌅 ${st.turno}</span>
+      <span style="background:var(--surface2);padding:.25rem .7rem;border-radius:20px;font-family:'DM Mono',monospace">${st.nc}</span>
+    </div>
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:.75rem">Detalle por asignatura</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+      <thead><tr style="background:#6B1130">
+        <th style="padding:.6rem .75rem;text-align:left;font-size:.68rem;color:#fff;font-weight:700;text-transform:uppercase">Asignatura</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-size:.68rem;color:#fff;font-weight:700;text-transform:uppercase">Docente</th>
+        <th style="padding:.6rem .5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">P1</th>
+        <th style="padding:.6rem .5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">P2</th>
+        <th style="padding:.6rem .5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">P3</th>
+        <th style="padding:.6rem .5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">Final</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r,i)=>`<tr style="border-bottom:1px solid #e8e8e8;background:${i%2?'#fafafa':'#ffffff'}">
+          <td style="padding:.5rem .75rem;font-weight:500;color:var(--text)">${r.asignatura}</td>
+          <td style="padding:.5rem .75rem;font-size:.72rem;color:var(--text2)">${capName(r.docente||'Sin asignar')}</td>
+          <td style="padding:.5rem;text-align:center">${r.p1||'—'}</td>
+          <td style="padding:.5rem;text-align:center">${r.p2||'—'}</td>
+          <td style="padding:.5rem;text-align:center">${r.p3||'—'}</td>
+          <td style="padding:.5rem;text-align:center">${calBadge(r.cal)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('modalPerfil').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalPerfil').classList.remove('open'); }
+document.getElementById('modalPerfil').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+
+// ─────────────────────────────────────────────
+// DOCENTES
+// ─────────────────────────────────────────────
+function renderDocentes(){
+  const q=document.getElementById('searchDoc').value.toLowerCase();
+  const sortField=document.getElementById('sortDoc')?document.getElementById('sortDoc').value:'total';
+  let filtered=DS.docentes.filter(d=>!q||d.nombre.toLowerCase().includes(q));
+  filtered=[...filtered].sort((a,b)=>{
+    if(sortField==='nombre') return a.nombre.localeCompare(b.nombre);
+    if(sortField==='apro_pct') return pct(b.apro,b.total)-pct(a.apro,a.total);
+    return (b[sortField]||0)-(a[sortField]||0);
+  });
+  document.getElementById('docCount').textContent=`${filtered.length} docentes`;
+  document.getElementById('docGrid').innerHTML=filtered.map(d=>{
+    const ap=pct(d.apro,d.total);
+    const pc=d.prom>=8.5?'var(--green)':d.prom>=7?'var(--accent)':'var(--yellow)';
+    return `<div class="doc-card">
+      <div class="doc-name">${capName(d.nombre)}</div>
+      <div class="doc-stats">
+        <div class="doc-stat"><div class="doc-stat-val" style="color:${pc}">${d.prom}</div><div class="doc-stat-lbl">Promedio</div></div>
+        <div class="doc-stat"><div class="doc-stat-val" style="color:var(--text)">${d.total}</div><div class="doc-stat-lbl">Registros</div></div>
+        <div class="doc-stat"><div class="doc-stat-val" style="color:var(--purple)">${d.asigs}</div><div class="doc-stat-lbl">Asigs.</div></div>
+      </div>
+      <div class="pills">
+        <span class="pill pill-b">✓ ${d.apro} aprobados</span>
+        <span class="pill pill-r">✗ ${d.rep} reprobados</span>
+        ${d.np>0?`<span class="pill" style="background:#f5f5f5;color:#9e9e9e">NP: ${d.np}</span>`:''}
+      </div>
+      <div style="font-size:.7rem;color:var(--text2);margin-top:.6rem;margin-bottom:.35rem">${ap}% aprobación</div>
+      <div class="mini-bar"><div class="mini-fill" style="width:0%;background:${colorPct(ap)};transition:width .8s cubic-bezier(.22,.68,0,1.2) ${Math.random()*.3}s" data-w="${ap}"></div></div>
+    </div>`;
+  }).join('');
+  // Animate mini bars
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.mini-fill[data-w]').forEach(el=>{
+      setTimeout(()=>{ el.style.width = el.dataset.w + '%'; }, 50);
+    });
+  });
+}
+
+// ─────────────────────────────────────────────
+// CARRERAS
+// ─────────────────────────────────────────────
+// ── Sortable table state ──
+const tblSort = {};
+
+function sortTable(id, field){
+  if(!tblSort[id]) tblSort[id]={f:field,d:-1};
+  else if(tblSort[id].f===field) tblSort[id].d*=-1;
+  else { tblSort[id].f=field; tblSort[id].d=-1; }
+  // Update header indicators
+  const tblEl = document.getElementById('tbl'+id.charAt(0).toUpperCase()+id.slice(1));
+  if(tblEl) tblEl.querySelectorAll('th').forEach(th=>{
+    th.classList.remove('asc','desc');
+    const fn = th.getAttribute('onclick');
+    if(fn && fn.includes(`'${field}'`))
+      th.classList.add(tblSort[id].d===1?'asc':'desc');
+  });
+  if(id==='carr') renderCarrTable();
+  else if(id==='grupo') renderGrupoTable();
+  else if(id==='docSorted') renderDocTable();
+}
+
+function renderCarrTable(){
+  const {d:dir, f:field} = tblSort['carr'] || {f:'rep',d:-1};
+  const data = DS.carreras.map(c=>({...c, apct:pct(c.apro,c.apro+c.rep+c.np)}));
+  data.sort((a,b)=> typeof a[field]==='string' ? a[field].localeCompare(b[field])*dir : (a[field]-b[field])*dir);
+  document.getElementById('carrCount').textContent = data.length + ' carreras';
+  document.getElementById('tbCarr').innerHTML=data.map(c=>{
+    const ap=c.apct;
+    return `<tr>
+      <td style="font-weight:700;color:#1a1f2e">${c.n}</td>
+      <td style="font-size:.75rem;color:var(--text2);text-transform:capitalize">${c.turno||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:600">${c.al}</td>
+      <td>${calBadge(c.prom)}</td>
+      <td style="color:#2E7D32;font-family:'DM Mono',monospace">${c.apro.toLocaleString()}</td>
+      <td style="color:#C62828;font-family:'DM Mono',monospace">${c.rep.toLocaleString()}</td>
+      <td style="color:#9e9e9e;font-family:'DM Mono',monospace">${c.np.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:700;color:${colorPct(ap)}">${ap}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderGrupoTable(){
+  const {d:dir, f:field} = tblSort['grupo'] || {f:'prom',d:-1};
+  // Only show sem 1 groups (letter-based). Sem 3/5 shown in Alumnos section.
+  const sem1Groups = DS.grupos.filter(g=> Number(g.sem)<=1 || /^[1-9][A-Z]$/.test(g.n));
+  const data = sem1Groups.map(g=>({...g, apct:pct(g.apro,g.total)}));
+  data.sort((a,b)=> typeof a[field]==='string' ? a[field].localeCompare(b[field])*dir : (a[field]-b[field])*dir);
+  document.getElementById('grupoCount').textContent = data.length + ' grupos';
+  document.getElementById('tbGrupo').innerHTML=data.map(g=>{
+    const ap=g.apct;
+    return `<tr>
+      <td style="font-weight:800;font-family:'DM Mono',monospace;color:#6B1130;font-size:.9rem">${g.n}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--text2)">${g.sem||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:600">${g.al||g.total}</td>
+      <td>${calBadge(g.prom)}</td>
+      <td style="color:#2E7D32;font-family:'DM Mono',monospace">${g.apro.toLocaleString()}</td>
+      <td style="color:#C62828;font-family:'DM Mono',monospace">${g.rep.toLocaleString()}</td>
+      <td style="color:#9e9e9e;font-family:'DM Mono',monospace">${g.np.toLocaleString()}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:700;color:${colorPct(ap)}">${ap}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildCarreras(){
+  const {carreras,grupos}=DS;
+  const COLORS=['#6B1130','#9B1D47','#2E7D32','#1565c0','#E65100','#6a1b9a','#00695c','#c62828','#f57f17','#37474f'];
+  mkChart('cCarrBar','bar',{labels:carreras.map(c=>c.n.length>14?c.n.slice(0,13)+'…':c.n),datasets:[{label:'Promedio',data:carreras.map(c=>c.prom),backgroundColor:'rgba(107,17,48,.75)',borderRadius:5},{label:'% Apr./10',data:carreras.map(c=>pct(c.apro,c.apro+c.rep+c.np)/10),backgroundColor:'rgba(46,125,50,.6)',borderRadius:5}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:30}},y:{grid:GRID,ticks:TICK,min:0,max:10}}});
+  mkChart('cCarrPie','doughnut',{labels:carreras.map(c=>c.n),datasets:[{data:carreras.map(c=>c.al),backgroundColor:COLORS.slice(0,carreras.length),borderWidth:2,borderColor:'#ffffff'}]},{plugins:{legend:{labels:{color:'#5a6275',font:{size:10,family:'DM Mono'}}}}});
+  // Default sort: reprobados desc
+  tblSort['carr']={f:'rep',d:-1};
+  tblSort['grupo']={f:'prom',d:-1};
+  renderCarrTable();
+  renderGrupoTable();
+}
+
+// ─────────────────────────────────────────────
+// MAPA DE CALOR
+// ─────────────────────────────────────────────
+function buildHeatmapFilters(){
+  const carrs=[...new Set(DS.rawRows.map(r=>r.carrera))].sort();
+  const sems=[...new Set(DS.rawRows.map(r=>r.semestre).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const hc=document.getElementById('hCalorCarrera'); hc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{ const o=document.createElement('option');o.value=c;o.textContent=c;hc.appendChild(o); });
+  const hs=document.getElementById('hCalorSem'); hs.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{ const o=document.createElement('option');o.value=s;o.textContent='Semestre '+s;hs.appendChild(o); });
+}
+
+function buildHeatmap(){
+  const fc=document.getElementById('hCalorCarrera').value;
+  const fs=document.getElementById('hCalorSem').value;
+  let rows=DS.rawRows.filter(r=>r.cal>0&&r.cal<6&&r.docente&&r.docente!=='SIN ASIGNAR');
+  if(fc) rows=rows.filter(r=>r.carrera===fc);
+  if(fs) rows=rows.filter(r=>String(r.semestre)===String(fs));
+
+  // Build matrix docente × asignatura
+  const docs=[...new Set(rows.map(r=>r.docente))].sort();
+  const asigs=[...new Set(rows.map(r=>r.asignatura))].sort();
+  const matrix={};
+  rows.forEach(r=>{
+    if(!matrix[r.docente]) matrix[r.docente]={};
+    matrix[r.docente][r.asignatura]=(matrix[r.docente][r.asignatura]||0)+1;
+  });
+
+  document.getElementById('hmInfo').textContent=`${docs.length} docentes × ${asigs.length} asignaturas`;
+
+  // Color levels: 0=none, 1=1-2, 2=3-5, 3=6-10, 4=11+
+  const hmClass=n=>n===0?'hm-0':n<=2?'hm-1':n<=5?'hm-2':n<=10?'hm-3':'hm-4';
+
+  const wrap=document.getElementById('hmWrap');
+  if(!docs.length){ wrap.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text2)">Sin reprobados para los filtros seleccionados</div>'; return; }
+
+  // Limit to top 20 asigs by total reprobados
+  const asigTotals=asigs.map(a=>([a,docs.reduce((s,d)=>s+(matrix[d]&&matrix[d][a]||0),0)])).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  const topAsigs=asigTotals.map(([a])=>a);
+
+  wrap.innerHTML=`<table class="heatmap-table">
+    <thead><tr>
+      <th style="text-align:left;min-width:160px">Docente</th>
+      <th>Total</th>
+      ${topAsigs.map(a=>`<th title="${a}">${a.length>18?a.slice(0,17)+'…':a}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+      ${docs.map(d=>{
+        const total=topAsigs.reduce((s,a)=>s+(matrix[d]&&matrix[d][a]||0),0);
+        return `<tr>
+          <td style="text-align:left;padding:.4rem .6rem;color:var(--text);font-weight:600;white-space:nowrap">${capName(d).length>22?capName(d).slice(0,21)+'…':capName(d)}</td>
+          <td class="${hmClass(total)}">${total||''}</td>
+          ${topAsigs.map(a=>{ const n=matrix[d]&&matrix[d][a]||0; return `<td class="${hmClass(n)}">${n||''}</td>`; }).join('')}
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ─────────────────────────────────────────────
+// EN RIESGO
+// ─────────────────────────────────────────────
+function buildRiesgo(){
+  const all=DS.students;
+  const r1=all.filter(s=>s.rep===1).length,r2=all.filter(s=>s.rep===2).length;
+  const r3=all.filter(s=>s.rep===3).length,r4=all.filter(s=>s.rep>3).length;
+  const rTot=all.filter(s=>s.rep>=1).length;
+  document.getElementById('riesgoKpis').innerHTML=`
+    <div class="kpi" style="border-color:rgba(251,191,36,.25)"><div class="kpi-glow" style="background:var(--yellow)"></div><div class="kpi-label">Con 1 reprobada</div><div class="kpi-value" style="color:var(--yellow)">${r1}</div><div class="kpi-sub">${pct(r1,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi" style="border-color:rgba(251,146,60,.25)"><div class="kpi-glow" style="background:var(--orange)"></div><div class="kpi-label">Con 2 reprobadas</div><div class="kpi-value" style="color:var(--orange)">${r2}</div><div class="kpi-sub">${pct(r2,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi" style="border-color:rgba(248,113,113,.25)"><div class="kpi-glow" style="background:var(--red)"></div><div class="kpi-label">Con 3 reprobadas</div><div class="kpi-value" style="color:var(--red)">${r3}</div><div class="kpi-sub">${pct(r3,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi" style="border-color:rgba(220,38,38,.35)"><div class="kpi-glow" style="background:#dc2626"></div><div class="kpi-label">Con +3 reprobadas</div><div class="kpi-value" style="color:#dc2626">${r4}</div><div class="kpi-sub">${pct(r4,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi" style="border-color:rgba(79,142,247,.2)"><div class="kpi-glow" style="background:var(--accent)"></div><div class="kpi-label">Total con reprobadas</div><div class="kpi-value" style="color:var(--accent)">${rTot}</div><div class="kpi-sub">${pct(rTot,DS.meta.alumnos)}% de alumnos</div></div>
+    <div class="kpi" style="border-color:rgba(34,197,94,.15)"><div class="kpi-glow" style="background:var(--green)"></div><div class="kpi-label">Sin reprobadas</div><div class="kpi-value" style="color:var(--green)">${DS.meta.alumnos-rTot}</div><div class="kpi-sub">${pct(DS.meta.alumnos-rTot,DS.meta.alumnos)}% del total</div></div>
+  `;
+  const maxVal=Math.max(r1,r2,r3,r4,1);
+  document.getElementById('riesgoDesglose').innerHTML=`<div style="display:grid;gap:.75rem" id="desgloseGrid">
+    ${[['1 materia reprobada',r1,'var(--yellow)'],['2 materias reprobadas',r2,'var(--orange)'],['3 materias reprobadas',r3,'var(--red)'],['Más de 3 reprobadas',r4,'#dc2626']].map(([lbl,val,col])=>`
+    <div style="display:flex;align-items:center;gap:1rem">
+      <div style="min-width:180px;font-size:.8rem;color:var(--text)">${lbl}</div>
+      <div style="flex:1;height:10px;background:var(--surface2);border-radius:5px;overflow:hidden"><div class="risk-bar-fill" data-w="${Math.round(val/maxVal*100)}" style="background:${col}"></div></div>
+      <div style="min-width:60px;text-align:right;font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:${col}">${val} <span style="font-size:.68rem;color:var(--text2);font-weight:400">(${pct(val,DS.meta.alumnos)}%)</span></div>
+    </div>`).join('')}
+  </div>`;
+  // Animate bars
+  setTimeout(()=>{
+    document.querySelectorAll('.risk-bar-fill').forEach(el=>{
+      el.style.width = el.dataset.w + '%';
+    });
+  }, 100);
+  const carrs=[...new Set(DS.students.map(s=>s.carrera))].sort();
+  const grps=[...new Set(DS.students.map(s=>s.grupo).filter(Boolean))].sort();
+  const sems=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const turnos=[...new Set(DS.students.map(s=>s.turno).filter(Boolean))].sort();
+  const frc=document.getElementById('fRCarrera'); frc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;frc.appendChild(o);});
+  const frs=document.getElementById('fRSemestre'); frs.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent='Semestre '+s;frs.appendChild(o);});
+  const frt=document.getElementById('fRTurno'); frt.innerHTML='<option value="">Todos los turnos</option>';
+  turnos.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;frt.appendChild(o);});
+  rebuildGrupoSelect('riesgo','');
+  filterRiesgo();
+}
+
+function filterRiesgo(){
+  const fc=document.getElementById('fRCarrera').value,fg=document.getElementById('fRGrupo').value;
+  const fsem=document.getElementById('fRSemestre').value,ft=document.getElementById('fRTurno').value;
+  const fn=document.getElementById('fRNivel').value;
+  const noAplica=fsem!==''&&Number(fsem)>1;
+  let list=DS.students.filter(s=>s.rep>=1).sort((a,b)=>b.rep-a.rep);
+  if(fc) list=list.filter(s=>s.carrera===fc);
+  if(fsem) list=list.filter(s=>String(s.sem)===String(fsem));
+  if(ft) list=list.filter(s=>s.turno===ft);
+  if(fg&&!noAplica) list=list.filter(s=>s.grupo===fg);
+  if(fn==='1') list=list.filter(s=>s.rep===1);
+  else if(fn==='2') list=list.filter(s=>s.rep===2);
+  else if(fn==='3') list=list.filter(s=>s.rep===3);
+  else if(fn==='4') list=list.filter(s=>s.rep>3);
+  document.getElementById('riesgoCount').textContent=`${list.length} alumnos`;
+  const rc=rep=>rep===1?'var(--yellow)':rep===2?'var(--orange)':rep===3?'var(--red)':'#dc2626';
+  document.getElementById('riskGrid').innerHTML=list.slice(0,120).map(s=>`
+    <div class="risk-card" style="border-left-color:${rc(s.rep)};cursor:pointer" onclick="openPerfil('${s.nc}')">
+      <div class="risk-name">${capName(s.nombre)}</div>
+      <div class="risk-meta">${s.nc} · ${s.carrera} · Sem ${s.sem||'—'} · Grupo ${s.grupo||'—'} · ${s.turno}</div>
+      <div class="pills">
+        <span class="pill" style="background:${s.rep===1?'#431407':'#450a0a'};color:${rc(s.rep)}">⚠ ${s.rep} reprobada${s.rep>1?'s':''}</span>
+        <span class="pill pill-b">📚 ${s.mats} materias</span>
+        ${calBadge(s.prom)}
+      </div>
+    </div>`).join('');
+  window._riesgoList=list;
+}
+
+// ─────────────────────────────────────────────
+// EXPORTAR EXCEL (riesgo)
+// ─────────────────────────────────────────────
+function exportRiesgoExcel(){
+  const list=window._riesgoList||DS.students.filter(s=>s.rep>=1);
+  const rows=[['N° Control','Nombre','Carrera','Semestre','Grupo','Turno','Promedio','Reprobadas','Total Materias']];
+  list.forEach(s=>rows.push([s.nc,capName(s.nombre),s.carrera,s.sem,s.grupo||'—',s.turno,s.prom,s.rep,s.mats]));
+  // Build CSV with BOM for Excel UTF-8
+  const bom='﻿';
+  const csv=bom+rows.map(r=>r.map(v=>typeof v==='string'&&v.includes(',')?`"${v}"`:v).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`riesgo_${DS.meta.plantel.replace(/\s+/g,'_')}_${DS.meta.periodo.replace(/\s+/g,'_')}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ─────────────────────────────────────────────
+// COMPARAR PERÍODOS
+// ─────────────────────────────────────────────
+function loadCompare(slot,file){
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=async(e)=>{
+    let txt=e.target.result;
+    if(txt.includes('\uFFFD')){
+      const r2=new FileReader();
+      r2.onload=e2=>{ processCompare(slot,e2.target.result); };
+      r2.readAsText(file,'iso-8859-1'); return;
+    }
+    processCompare(slot,txt);
+  };
+  r.readAsText(file,'utf-8');
+}
+function processCompare(slot,content){
+  let rows=content.trim().startsWith('<')||content.toLowerCase().includes('<table')?parseHTMLTable(content):parseCSV(content);
+  const ds=buildDataset(rows);
+  compareData[slot]=ds;
+  document.getElementById(`slotName${slot}`).textContent=ds.meta.periodo||ds.meta.plantel;
+  document.getElementById(`slot${slot}`).classList.add('loaded');
+  if(compareData[1]&&compareData[2]) renderCompare();
+}
+function renderCompare(){
+  const A=compareData[1],B=compareData[2];
+  document.getElementById('compareHint').style.display='none';
+  document.getElementById('compareResults').style.display='block';
+  // KPI deltas
+  const delta=(b,a,fmt)=>{ const d=b-a; const s=d>0?'+':''; const cl=d>0?'delta-pos':d<0?'delta-neg':'delta-neu'; return `<span class="${cl}">${s}${fmt(d)}</span>`; };
+  document.getElementById('compareKpis').innerHTML=`
+    <div class="kpi" style="border-color:rgba(79,142,247,.25)"><div class="kpi-glow" style="background:var(--accent)"></div><div class="kpi-label">Promedio A → B</div><div class="kpi-value" style="color:var(--accent)">${B.kpis.prom}</div><div class="kpi-sub">Antes: ${A.kpis.prom} ${delta(B.kpis.prom,A.kpis.prom,d=>Math.abs(d).toFixed(2))}</div></div>
+    <div class="kpi" style="border-color:rgba(34,197,94,.2)"><div class="kpi-glow" style="background:var(--green)"></div><div class="kpi-label">Aprobados A → B</div><div class="kpi-value" style="color:var(--green)">${B.kpis.apro_pct}%</div><div class="kpi-sub">Antes: ${A.kpis.apro_pct}% ${delta(B.kpis.apro_pct,A.kpis.apro_pct,d=>Math.abs(d).toFixed(1)+'%')}</div></div>
+    <div class="kpi" style="border-color:rgba(248,113,113,.2)"><div class="kpi-glow" style="background:var(--red)"></div><div class="kpi-label">Reprobados A → B</div><div class="kpi-value" style="color:var(--red)">${B.kpis.rep_pct}%</div><div class="kpi-sub">Antes: ${A.kpis.rep_pct}% ${delta(B.kpis.rep_pct,A.kpis.rep_pct,d=>Math.abs(d).toFixed(1)+'%')}</div></div>
+    <div class="kpi" style="border-color:rgba(192,132,252,.2)"><div class="kpi-glow" style="background:var(--purple)"></div><div class="kpi-label">Alumnos A → B</div><div class="kpi-value" style="color:var(--purple)">${B.meta.alumnos}</div><div class="kpi-sub">Antes: ${A.meta.alumnos} ${delta(B.meta.alumnos,A.meta.alumnos,d=>Math.abs(d))}</div></div>
+  `;
+  // Charts
+  const allCarrs=[...new Set([...A.carreras.map(c=>c.n),...B.carreras.map(c=>c.n)])].sort();
+  const getC=(ds,n,f)=>{const c=ds.carreras.find(x=>x.n===n);return c?f(c):null;};
+  mkChart('cCompCarr','bar',{
+    labels:allCarrs.map(c=>c.length>14?c.slice(0,13)+'…':c),
+    datasets:[{label:A.meta.periodo,data:allCarrs.map(c=>getC(A,c,x=>x.prom)),backgroundColor:'rgba(79,142,247,.6)',borderRadius:4},
+              {label:B.meta.periodo,data:allCarrs.map(c=>getC(B,c,x=>x.prom)),backgroundColor:'rgba(34,197,94,.7)',borderRadius:4}]
+  },{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK,min:0,max:10}}});
+  mkChart('cCompRep','bar',{
+    labels:allCarrs.map(c=>c.length>14?c.slice(0,13)+'…':c),
+    datasets:[{label:A.meta.periodo,data:allCarrs.map(c=>getC(A,c,x=>pct(x.rep,x.apro+x.rep+x.np))),backgroundColor:'rgba(248,113,113,.5)',borderRadius:4},
+              {label:B.meta.periodo,data:allCarrs.map(c=>getC(B,c,x=>pct(x.rep,x.apro+x.rep+x.np))),backgroundColor:'rgba(251,146,60,.7)',borderRadius:4}]
+  },{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK,max:100}}});
+  // Table
+  document.getElementById('tbCompare').innerHTML=allCarrs.map((n,i)=>{
+    const a=A.carreras.find(x=>x.n===n),b=B.carreras.find(x=>x.n===n);
+    const apA=a?a.prom:'—',apB=b?b.prom:'—';
+    const rpA=a?pct(a.rep,a.apro+a.rep+a.np):'—',rpB=b?pct(b.rep,b.apro+b.rep+b.np):'—';
+    const dProm=a&&b?b.prom-a.prom:null,dRep=a&&b?b.rep-a.rep:null;
+    const dpCl=dProm===null?'delta-neu':dProm>0?'delta-pos':'delta-neg';
+    const drCl=dRep===null?'delta-neu':dRep<0?'delta-pos':'delta-neg';
+    return `<tr><td style="font-weight:700;color:var(--white)">${n}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${apA}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${apB}</td>
+      <td style="text-align:center"><span class="${dpCl}">${dProm!==null?(dProm>0?'+':'')+dProm.toFixed(2):'—'}</span></td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${a?a.rep:'—'}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${b?b.rep:'—'}</td>
+      <td style="text-align:center"><span class="${drCl}">${dRep!==null?(dRep>0?'+':'')+dRep:'—'}</span></td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${a?pct(a.apro,a.apro+a.rep+a.np)+'%':'—'}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${b?pct(b.apro,b.apro+b.rep+b.np)+'%':'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+
+// ─────────────────────────────────────────────
+// PRINT CURRENT PAGE VIEW
+// ─────────────────────────────────────────────
+function printPage(pageId){
+  const meta = DS ? DS.meta : {plantel:'',clave:'',periodo:''};
+  const fecha = new Date().toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+  const pageEl = document.getElementById('page-'+pageId);
+  if(!pageEl) return;
+
+  // Clone the page content
+  const clone = pageEl.cloneNode(true);
+  // Remove print buttons from clone
+  clone.querySelectorAll('.page-print-btn,.filter-row,.pagin').forEach(el=>el.remove());
+
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Reporte ${meta.plantel} — ${pageId}</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#1a1f2e;padding:24px;font-size:12px}
+      .sec-title{font-size:20px;font-weight:800;color:#6B1130;margin-bottom:4px}
+      .sec-sub{font-size:11px;color:#5a6275;margin-bottom:16px}
+      .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+      .kpi{background:#f9f0f3;border:1px solid #e0c8d0;border-radius:8px;padding:12px;position:relative;overflow:hidden}
+      .kpi-label{font-size:8px;color:#5a6275;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;font-weight:600}
+      .kpi-value{font-size:22px;font-weight:800;font-family:monospace}
+      .kpi-sub{font-size:9px;color:#5a6275;margin-top:3px}
+      .kpi-glow{display:none}
+      .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+      .chart-card{border:1px solid #e0e0e0;border-radius:8px;padding:12px}
+      .chart-card.full{grid-column:1/-1}
+      .card-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5a6275;margin-bottom:10px}
+      .chart-wrap{height:200px}
+      .chart-wrap.tall{height:240px}
+      .tbl-card{border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin-bottom:12px}
+      .tbl-head{padding:8px 12px;background:#f5f5f5;border-bottom:1px solid #e0e0e0}
+      .tbl-head-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5a6275}
+      .tbl-wrap{overflow:visible;max-height:none}
+      table{width:100%;border-collapse:collapse;font-size:10px}
+      th{background:#6B1130;color:#fff;padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase}
+      td{padding:5px 8px;border-bottom:1px solid #e0e0e0}
+      tr:nth-child(even) td{background:#fafafa}
+      .cal-badge{display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:monospace;padding:2px 5px;border-radius:4px;min-width:28px}
+      .cal-10,.cal-9{background:#e8f5e9;color:#1b5e20}
+      .cal-8{background:#e3f2fd;color:#1565c0}
+      .cal-7{background:#f5f5f5;color:#424242}
+      .cal-6{background:#fff3e0;color:#e65100}
+      .cal-rep{background:#ffebee;color:#b71c1c}
+      .cal-np{background:#f5f5f5;color:#9e9e9e}
+      .risk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:12px}
+      .risk-card{border:1px solid #e0e0e0;border-left:3px solid #C62828;border-radius:6px;padding:8px}
+      .risk-name{font-size:10px;font-weight:700;margin-bottom:2px}
+      .risk-meta{font-size:8px;color:#5a6275}
+      .pills{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap}
+      .pill{font-size:8px;font-weight:600;padding:1px 5px;border-radius:10px}
+      .pill-r{background:#ffebee;color:#b71c1c}
+      .pill-b{background:#e3f2fd;color:#1565c0}
+      .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+      .doc-card{border:1px solid #e0e0e0;border-radius:8px;padding:10px}
+      .doc-name{font-size:10px;font-weight:700;margin-bottom:6px}
+      .doc-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px}
+      .doc-stat{text-align:center;background:#f5f5f5;border-radius:6px;padding:4px}
+      .doc-stat-val{font-size:13px;font-weight:800;font-family:monospace}
+      .doc-stat-lbl{font-size:7px;color:#5a6275;text-transform:uppercase}
+      .mini-bar{height:4px;background:#e0e0e0;border-radius:2px;overflow:hidden;margin-top:4px}
+      .mini-fill{height:100%;border-radius:2px}
+      .compare-slots,.sec-head{display:none}
+      .heatmap-table{border-collapse:collapse;font-size:9px;width:100%}
+      .heatmap-table th,.heatmap-table td{border:1px solid #e0e0e0;padding:3px 5px}
+      .heatmap-table th{background:#6B1130;color:#fff;font-size:8px}
+      .hm-0{background:#f5f5f5;color:#bdbdbd}
+      .hm-1{background:#fff8e1;color:#f57f17;font-weight:600}
+      .hm-2{background:#fff3e0;color:#e65100;font-weight:600}
+      .hm-3{background:#ffebee;color:#c62828;font-weight:700}
+      .hm-4{background:#b71c1c;color:#fff;font-weight:800}
+      .no-print{display:none}
+      @media print{@page{margin:1.5cm;size:A4}.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print" style="text-align:right;margin-bottom:12px;display:flex;gap:6px;justify-content:space-between;align-items:center">
+      <div style="font-size:11px;color:#5a6275"><strong style="color:#6B1130">${meta.plantel}</strong> · ${meta.periodo} · ${fecha}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="window.print()" style="background:#6B1130;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:11px;font-weight:700;cursor:pointer">🖨 Imprimir / PDF</button>
+        <button onclick="window.close()" style="background:#f1f5f9;color:#475569;border:none;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer">✕</button>
+      </div>
+    </div>
+    <div style="border-bottom:3px solid #6B1130;margin-bottom:16px;padding-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;margin-bottom:2px">DGETI · SEP · Reporte Oficial</div>
+      <div style="font-size:18px;font-weight:800;color:#1a1f2e">${meta.plantel}</div>
+      <div style="font-size:10px;color:#5a6275">${meta.clave} · ${meta.periodo}</div></div>
+      <div style="font-size:9px;color:#94a3b8;text-align:right">Generado: ${fecha}<br>© Luis Eduardo Ibarra Hernández · CBTis 179</div>
+    </div>
+    ${clone.innerHTML}
+    </body></html>`);
+  win.document.close();
+}
+
+// ─────────────────────────────────────────────
+// PDF — mejorado
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// CHART COLORS (institutional)
+// ─────────────────────────────────────────────
+const GRID   = { color:'rgba(0,0,0,.06)' };
+const TICK   = { color:'#666', font:{size:10,family:'DM Mono'} };
+const LEGEND = { labels:{color:'#444',font:{size:10,family:'DM Mono'},boxWidth:12} };
+const C_VINO  = 'rgba(107,26,43,';
+const C_VERDE = 'rgba(46,125,50,';
+const C_ORO   = 'rgba(184,134,11,';
+
+
+// ─────────────────────────────────────────────
+// ANIMATION HELPERS
+// ─────────────────────────────────────────────
+function animateCounters(){
+  document.querySelectorAll('.kpi-value[data-target]').forEach(el=>{
+    const target = parseFloat(el.dataset.target);
+    const isFloat = el.dataset.target.includes('.');
+    const duration = 900;
+    const start = performance.now();
+    const from = 0;
+    function step(now){
+      const p = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      const val = from + (target - from) * ease;
+      el.textContent = isFloat ? val.toFixed(2) : Math.round(val).toLocaleString();
+      if(p < 1) requestAnimationFrame(step);
+      else el.textContent = isFloat ? target.toFixed(2) : target.toLocaleString();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function animateNumber(el, target, isFloat=false, duration=800){
+  const start = performance.now();
+  function step(now){
+    const p = Math.min((now-start)/duration,1);
+    const ease = 1-Math.pow(1-p,3);
+    el.textContent = isFloat ? (target*ease).toFixed(2) : Math.round(target*ease).toLocaleString();
+    if(p<1) requestAnimationFrame(step);
+    else el.textContent = isFloat ? target.toFixed(2) : target.toLocaleString();
+  }
+  requestAnimationFrame(step);
+}
+
+// ─────────────────────────────────────────────
+// APP INIT
+// ─────────────────────────────────────────────
+let DS=null, DS2=null;
+let stFiltered=[], stPage=1; const PAGE=40;
+let stSort={f:'nombre',d:1};
+let charts={};
+
+function setLoad(p,t){ document.getElementById('loadingBar').style.width=p+'%'; document.getElementById('loadingText').textContent=t; }
+
+function initApp(){
+  document.getElementById('hPlantel').textContent=DS.meta.plantel;
+  document.getElementById('hClave').textContent=DS.meta.clave;
+  document.getElementById('hPeriodo').textContent=DS.meta.periodo;
+  Object.values(charts).forEach(c=>c.destroy()); charts={};
+  buildDash(); buildAlumnosFilters(); filterStudents();
+  renderDocentes(); buildCarreras(); buildRiesgo(); buildHeatmapFilters();
+  showPage('dash');
+}
+
+function resetApp(){
+  DS=null; DS2=null;
+  document.getElementById('appScreen').style.display='none';
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('uploadScreen').style.display='flex';
+  document.getElementById('fileInput').value='';
+}
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active','entering'); });
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const target = document.getElementById('page-'+name);
+  if(!target){ console.warn('Page not found: page-'+name); return; }
+  target.classList.add('active');
+  // Trigger stagger animation
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      target.classList.add('entering');
+      setTimeout(()=> target.classList.remove('entering'), 900);
+    });
+  });
+  document.querySelector(`[data-p="${name}"]`).classList.add('active');
+  if(name==='calor') buildHeatmap();
+}
+
+// ─────────────────────────────────────────────
+// PRINT — contextual per tab
+// ─────────────────────────────────────────────
+function printPage(tipo){
+  const meta = DS.meta;
+  const fecha = new Date().toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+  const HDR = `
+    <div style="border-bottom:4px solid #6B1A2B;padding-bottom:14px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end">
+      <div>
+        <div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:3px">Secretaría de Educación Pública · DGETI</div>
+        <div style="font-size:20px;font-weight:800;color:#6B1A2B">${meta.plantel}</div>
+        <div style="font-size:11px;color:#555;margin-top:3px">${meta.clave} · ${meta.periodo}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:#888">Generado: ${fecha}</div>
+        <div style="font-size:9px;color:#aaa;margin-top:2px">© Luis Eduardo Ibarra Hernández · CBTis No. 179</div>
+      </div>
+    </div>`;
+  const T='width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px';
+  const TH='background:#6B1A2B;color:#fff;padding:7px 9px;text-align:left;font-size:10px;font-weight:700';
+  const TD=(i,x='')=>`padding:7px 9px;border-bottom:1px solid #eee;background:${i%2?'#fdf5f6':'#fff'};${x}`;
+  const sem=p=>p>=85?'🟢':p>=70?'🟡':'🔴';
+
+  let body='';
+
+  if(tipo==='dash'){
+    const {kpis,carreras,asigRep}=DS;
+    const r1=DS.students.filter(s=>s.rep===1).length,r2=DS.students.filter(s=>s.rep===2).length;
+    const r3=DS.students.filter(s=>s.rep===3).length,r4=DS.students.filter(s=>s.rep>3).length;
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:10px">Resumen Ejecutivo</h2>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">
+      ${[['Alumnos',DS.meta.alumnos,'#6B1A2B'],['Promedio',kpis.prom,'#2E7D32'],['Aprobados',kpis.apro_pct+'%','#2E7D32'],['Reprobados',kpis.rep_pct+'%','#C62828'],['NP',kpis.np_pct+'%','#E65100']].map(([l,v,c])=>`<div style="border-top:3px solid ${c};padding:10px;background:#fafafa;border-radius:0 0 8px 8px;text-align:center"><div style="font-size:8px;color:#888;text-transform:uppercase;margin-bottom:4px">${l}</div><div style="font-size:18px;font-weight:800;color:${c}">${v}</div></div>`).join('')}
+    </div>
+    <h2 style="font-size:13px;color:#6B1A2B;margin-bottom:6px">Riesgo Académico</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+      ${[['1 reprobada',r1,'#F57F17'],['2 reprobadas',r2,'#E65100'],['3 reprobadas',r3,'#C62828'],['+3 reprobadas',r4,'#6B1A2B']].map(([l,v,c])=>`<div style="border-left:4px solid ${c};padding:8px 10px;background:#fafafa"><div style="font-size:8px;color:#888;text-transform:uppercase">${l}</div><div style="font-size:18px;font-weight:800;color:${c}">${v}</div></div>`).join('')}
+    </div>
+    <h2 style="font-size:13px;color:#6B1A2B;margin-bottom:8px">Rendimiento por Carrera</h2>
+    <table style="${T}"><thead><tr><th style="${TH}">Carrera</th><th style="${TH}">Alumnos</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th></tr></thead><tbody>
+    ${carreras.map((c,i)=>{const ap=pct(c.apro,c.apro+c.rep+c.np);return`<tr><td style="${TD(i)}">${c.n}</td><td style="${TD(i)};text-align:center">${c.al}</td><td style="${TD(i)};text-align:center;font-weight:700">${c.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${c.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${c.rep}</td><td style="${TD(i)};text-align:center;color:#888">${c.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td></tr>`;}).join('')}
+    </tbody></table>
+    <h2 style="font-size:13px;color:#6B1A2B;margin-bottom:8px">Top Asignaturas con más Reprobados</h2>
+    <table style="${T}"><thead><tr><th style="${TH}">Asignatura</th><th style="${TH}">Reprobados</th><th style="${TH}">Total</th><th style="${TH}">Promedio</th></tr></thead><tbody>
+    ${asigRep.slice(0,10).map((a,i)=>`<tr><td style="${TD(i)}">${a[0]}</td><td style="${TD(i)};text-align:center;color:#C62828;font-weight:700">${a[1]}</td><td style="${TD(i)};text-align:center">${a[2]}</td><td style="${TD(i)};text-align:center;font-weight:700">${a[3]}</td></tr>`).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='alumnos'){
+    // Use currently filtered students
+    const list = stFiltered.length ? stFiltered : DS.students;
+    const filters = [];
+    const fc=document.getElementById('fCarrera').value; if(fc) filters.push('Carrera: '+fc);
+    const fs=document.getElementById('fSemestre').value; if(fs) filters.push('Semestre: '+fs);
+    const ft=document.getElementById('fTurno').value; if(ft) filters.push('Turno: '+ft);
+    const fg=document.getElementById('fGrupo').value; if(fg) filters.push('Grupo: '+fg);
+    const fst=document.getElementById('fStatus').value; if(fst) filters.push('Estado: '+fst);
+    const q=document.getElementById('searchSt').value; if(q) filters.push('Búsqueda: '+q);
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">Lista de Alumnos</h2>
+    <p style="font-size:10px;color:#888;margin-bottom:${filters.length?'4px':'14px'}">${list.length} alumnos · ${fecha}</p>
+    ${filters.length?`<p style="font-size:10px;color:#6B1A2B;margin-bottom:12px;background:#fdf5f6;padding:6px 10px;border-radius:6px;border-left:3px solid #6B1A2B">Filtros activos: ${filters.join(' · ')}</p>`:''}
+    <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem</th><th style="${TH}">Grupo</th><th style="${TH}">Turno</th><th style="${TH}">Promedio</th><th style="${TH}">Reprobadas</th></tr></thead><tbody>
+    ${list.map((s,i)=>{const rc=s.rep>0?'#C62828':'#2E7D32';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.grupo||'—'}</td><td style="${TD(i)};font-size:9px">${s.turno}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${rc}">${s.rep||'✓'}</td></tr>`;}).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='docentes'){
+    const q=document.getElementById('searchDoc').value.toLowerCase();
+    const list=DS.docentes.filter(d=>!q||d.nombre.toLowerCase().includes(q));
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:10px">Análisis de Desempeño Docente</h2>
+    <table style="${T}"><thead><tr><th style="${TH}">Docente</th><th style="${TH}">Registros</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th><th style="${TH}">Asigs.</th></tr></thead><tbody>
+    ${list.map((d,i)=>{const ap=pct(d.apro,d.total);return`<tr><td style="${TD(i)};font-weight:600">${capName(d.nombre)}</td><td style="${TD(i)};text-align:center">${d.total}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${d.prom>=8?'#2E7D32':'#555'}">${d.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${d.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${d.rep}</td><td style="${TD(i)};text-align:center;color:#888">${d.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td><td style="${TD(i)};text-align:center">${d.asigs}</td></tr>`;}).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='carreras'){
+    const {carreras,grupos}=DS;
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:10px">Análisis por Carrera</h2>
+    <table style="${T}"><thead><tr><th style="${TH}">Carrera</th><th style="${TH}">Alumnos</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th></tr></thead><tbody>
+    ${carreras.map((c,i)=>{const ap=pct(c.apro,c.apro+c.rep+c.np);return`<tr><td style="${TD(i)};font-weight:700;color:#6B1A2B">${c.n}</td><td style="${TD(i)};text-align:center">${c.al}</td><td style="${TD(i)};text-align:center;font-weight:700">${c.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${c.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${c.rep}</td><td style="${TD(i)};text-align:center;color:#888">${c.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td></tr>`;}).join('')}
+    </tbody></table>
+    <h2 style="font-size:13px;color:#6B1A2B;margin-bottom:8px;margin-top:16px">Detalle por Grupo</h2>
+    <table style="${T}"><thead><tr><th style="${TH}">Grupo</th><th style="${TH}">Registros</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th></tr></thead><tbody>
+    ${grupos.map((g,i)=>{const ap=pct(g.apro,g.total);return`<tr><td style="${TD(i)};font-weight:800;font-family:monospace">${g.n}</td><td style="${TD(i)};text-align:center">${g.total}</td><td style="${TD(i)};text-align:center;font-weight:700">${g.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${g.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${g.rep}</td><td style="${TD(i)};text-align:center;color:#888">${g.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td></tr>`;}).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='calor'){
+    const fc=document.getElementById('hCalorCarrera').value;
+    const fs=document.getElementById('hCalorSem').value;
+    const hmTable=document.querySelector('#hmWrap table');
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">Mapa de Calor — Reprobados por Docente y Asignatura</h2>
+    <p style="font-size:10px;color:#888;margin-bottom:14px">${fc||'Todas las especialidades'} · ${fs?'Semestre '+fs:'Todos los semestres'} · ${fecha}</p>
+    ${hmTable?hmTable.outerHTML.replace(/class="hm-\d"/g,m=>({'"hm-0"':'style="background:#f5f5f5;color:#999"','"hm-1"':'style="background:#FFF9C4;color:#F57F17"','"hm-2"':'style="background:#FFE0B2;color:#E65100"','"hm-3"':'style="background:#FFCDD2;color:#C62828"','"hm-4"':'style="background:#B71C1C;color:#fff;font-weight:700"'}[m]||'')):'<p>Sin datos</p>'}`;
+
+  } else if(tipo==='riesgo'){
+    const list=window._riesgoList||DS.students.filter(s=>s.rep>=1);
+    const fn=document.getElementById('fRNivel').value;
+    const fc=document.getElementById('fRCarrera').value;
+    const ft=document.getElementById('fRTurno').value;
+    const fs=document.getElementById('fRSemestre').value;
+    const filters=[];
+    if(fc) filters.push('Especialidad: '+fc);
+    if(fs) filters.push('Semestre: '+fs);
+    if(ft) filters.push('Turno: '+ft);
+    if(fn) filters.push({1:'1 reprobada',2:'2 reprobadas',3:'3 reprobadas',4:'+3 reprobadas'}[fn]);
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#C62828;margin-bottom:4px">⚠ Alumnos en Riesgo Académico</h2>
+    <p style="font-size:10px;color:#888;margin-bottom:${filters.length?'4px':'14px'}">${list.length} alumnos · ${fecha}</p>
+    ${filters.length?`<p style="font-size:10px;color:#C62828;margin-bottom:12px;background:#FFEBEE;padding:6px 10px;border-radius:6px;border-left:3px solid #C62828">Filtros activos: ${filters.join(' · ')}</p>`:''}
+    <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem</th><th style="${TH}">Grupo</th><th style="${TH}">Turno</th><th style="${TH}">Rep.</th><th style="${TH}">Promedio</th></tr></thead><tbody>
+    ${list.map((s,i)=>{const c=s.rep===1?'#F57F17':s.rep===2?'#E65100':s.rep===3?'#C62828':'#6B1A2B';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.grupo||'—'}</td><td style="${TD(i)};font-size:9px">${s.turno}</td><td style="${TD(i)};text-align:center;color:${c};font-weight:800">${s.rep}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td></tr>`;}).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='comparar'){
+    if(!compareData[1]||!compareData[2]){alert('Carga los dos archivos primero');return;}
+    const A=compareData[1],B=compareData[2];
+    const allC=[...new Set([...A.carreras.map(c=>c.n),...B.carreras.map(c=>c.n)])].sort();
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">Comparativa de Períodos</h2>
+    <p style="font-size:10px;color:#888;margin-bottom:14px">${A.meta.periodo} vs ${B.meta.periodo}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      ${[['Promedio',A.kpis.prom,B.kpis.prom,''],['Aprobados',A.kpis.apro_pct+'%',B.kpis.apro_pct+'%',''],['Reprobados',A.kpis.rep_pct+'%',B.kpis.rep_pct+'%','']].map(([l,va,vb])=>`<div style="background:#fafafa;border-radius:8px;padding:10px;border-left:3px solid #6B1A2B"><div style="font-size:9px;color:#888;text-transform:uppercase;margin-bottom:6px">${l}</div><div style="display:flex;justify-content:space-between"><span style="font-size:14px;font-weight:700;color:#888">${va}</span><span style="font-size:10px;color:#aaa;align-self:center">→</span><span style="font-size:14px;font-weight:800;color:#6B1A2B">${vb}</span></div><div style="font-size:9px;color:#aaa;margin-top:2px">${A.meta.periodo} → ${B.meta.periodo}</div></div>`).join('')}
+    </div>
+    <table style="${T}"><thead><tr><th style="${TH}">Carrera</th><th style="${TH}">Prom. A</th><th style="${TH}">Prom. B</th><th style="${TH}">Δ Prom.</th><th style="${TH}">Rep. A</th><th style="${TH}">Rep. B</th><th style="${TH}">Δ Rep.</th><th style="${TH}">% Apr. A</th><th style="${TH}">% Apr. B</th></tr></thead><tbody>
+    ${allC.map((n,i)=>{
+      const a=A.carreras.find(x=>x.n===n),b=B.carreras.find(x=>x.n===n);
+      const dp=a&&b?b.prom-a.prom:null, dr=a&&b?b.rep-a.rep:null;
+      const dpc=dp===null?'#888':dp>0?'#2E7D32':'#C62828';
+      const drc=dr===null?'#888':dr<0?'#2E7D32':'#C62828';
+      return`<tr><td style="${TD(i)};font-weight:700">${n}</td><td style="${TD(i)};text-align:center">${a?a.prom:'—'}</td><td style="${TD(i)};text-align:center;font-weight:700">${b?b.prom:'—'}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${dpc}">${dp!==null?(dp>0?'+':'')+dp.toFixed(2):'—'}</td><td style="${TD(i)};text-align:center">${a?a.rep:'—'}</td><td style="${TD(i)};text-align:center;font-weight:700">${b?b.rep:'—'}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${drc}">${dr!==null?(dr>0?'+':'')+dr:'—'}</td><td style="${TD(i)};text-align:center">${a?pct(a.apro,a.apro+a.rep+a.np)+'%':'—'}</td><td style="${TD(i)};text-align:center;font-weight:700">${b?pct(b.apro,b.apro+b.rep+b.np)+'%':'—'}</td></tr>`;
+    }).join('')}
+    </tbody></table>`;
+  }
+
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${meta.plantel} — ${tipo}</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:28px;max-width:920px;margin:0 auto;color:#1a1a1a;font-size:12px}
+    @media print{.no-print{display:none!important}@page{margin:1.5cm;size:A4}}</style></head><body>
+    <div class="no-print" style="text-align:right;margin-bottom:14px;display:flex;gap:.5rem;justify-content:flex-end">
+      <button onclick="window.print()" style="background:#6B1A2B;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button>
+      <button onclick="window.close()" style="background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer">✕ Cerrar</button>
+    </div>
+    ${body}
+    <div style="margin-top:24px;padding-top:12px;border-top:2px solid #6B1A2B;display:flex;justify-content:space-between;font-size:9px;color:#aaa">
+      <span>© Luis Eduardo Ibarra Hernández · CBTis No. 179 · DGETI</span>
+      <span>${meta.plantel} · ${meta.periodo} · ${fecha}</span>
+    </div>
+    </body></html>`);
+  win.document.close();
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function calBadge(c){
+  if(c===0) return `<span class="cal-badge cal-np">NP</span>`;
+  if(c<6)  return `<span class="cal-badge cal-rep">${c.toFixed(1)}</span>`;
+  if(c<7)  return `<span class="cal-badge cal-6">${c.toFixed(1)}</span>`;
+  if(c<8)  return `<span class="cal-badge cal-7">${c.toFixed(1)}</span>`;
+  if(c<9)  return `<span class="cal-badge cal-8">${c.toFixed(1)}</span>`;
+  if(c<10) return `<span class="cal-badge cal-9">${c.toFixed(1)}</span>`;
+  return `<span class="cal-badge cal-10">${c.toFixed(1)}</span>`;
+}
+function pct(a,b){ return b?Math.round(a/b*100):0; }
+function colorPct(p){ return p>=85?'#2E7D32':p>=70?'#F57F17':'#C62828'; }
+function capName(s){ return s.toLowerCase().split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' '); }
+function mkChart(id,type,data,opts){
+  if(charts[id]) charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),{type,data,options:{responsive:true,maintainAspectRatio:false,...opts}});
+  return charts[id];
+}
+
+// ─────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────
+function buildDash(){
+  const {meta,kpis,hist,carreras,asigRep}=DS;
+  document.getElementById('dashSub').textContent=`${meta.periodo} · ${meta.alumnos.toLocaleString()} alumnos · ${meta.docentes} docentes · ${meta.asignaturas} asignaturas · ${meta.total.toLocaleString()} registros`;
+  document.getElementById('kpiGrid').innerHTML=`
+    <div class="kpi kv"><div class="kpi-label">Promedio General</div><div class="kpi-value">${kpis.prom}</div><div class="kpi-sub">Escala 0–10</div></div>
+    <div class="kpi" style="border-top-color:#555"><div class="kpi-label">Alumnos</div><div class="kpi-value" style="color:#333">${meta.alumnos.toLocaleString()}</div><div class="kpi-sub">${meta.total.toLocaleString()} registros</div></div>
+    <div class="kpi kg"><div class="kpi-label">Aprobados</div><div class="kpi-value">${kpis.apro_pct}%</div><div class="kpi-sub">${kpis.apro.toLocaleString()} calificaciones</div></div>
+    <div class="kpi kr"><div class="kpi-label">Reprobados</div><div class="kpi-value">${kpis.rep_pct}%</div><div class="kpi-sub">${kpis.rep.toLocaleString()} calificaciones</div></div>
+    <div class="kpi ky"><div class="kpi-label">No Presentaron</div><div class="kpi-value">${kpis.np_pct}%</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros</div></div>
+    <div class="kpi kp"><div class="kpi-label">Docentes</div><div class="kpi-value">${meta.docentes}</div><div class="kpi-sub">${meta.asignaturas} asignaturas</div></div>
+  `;
+  mkChart('cHist','bar',{labels:Object.keys(hist),datasets:[{data:Object.values(hist),backgroundColor:['#9E9E9E','#C62828','#2E7D32','#1565C0','#0277BD','#00838F','#1B5E20'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}});
+  mkChart('cCarrApro','bar',{labels:carreras.map(c=>c.n.length>14?c.n.slice(0,13)+'…':c.n),datasets:[{label:'Aprobados %',data:carreras.map(c=>pct(c.apro,c.apro+c.rep+c.np)),backgroundColor:'rgba(46,125,50,.75)',borderRadius:4},{label:'Reprobados %',data:carreras.map(c=>pct(c.rep,c.apro+c.rep+c.np)),backgroundColor:'rgba(198,40,40,.7)',borderRadius:4}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:30}},y:{grid:GRID,ticks:TICK,max:100}}});
+  mkChart('cAsigRep','bar',{labels:asigRep.slice(0,10).map(a=>a[0].length>32?a[0].slice(0,31)+'…':a[0]),datasets:[{data:asigRep.slice(0,10).map(a=>a[1]),backgroundColor:'rgba(107,26,43,.8)',borderRadius:4}]},{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:{display:false},ticks:TICK}}});
+  const semsList=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const tabsEl=document.getElementById('grupoTabs');
+  tabsEl.innerHTML=semsList.map((s,i)=>`<button class="grupo-tab ${i===0?'on':''}" onclick="switchGrupoTab('${s}',this)">Sem ${s}</button>`).join('');
+  if(semsList.length) switchGrupoTab(semsList[0],tabsEl.firstChild);
+}
+
+function switchGrupoTab(sem,btn){
+  document.querySelectorAll('.grupo-tab').forEach(t=>t.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  const semNum=Number(sem);
+  document.getElementById('grupoNote').innerHTML=semNum<=1?'Grupos 1A–1F · Componente Básico y Propedéutico':`Semestre ${sem} · Agrupado por <strong style="color:var(--verde)">especialidad</strong>`;
+  let labels,values;
+  if(semNum<=1){
+    const byG={};
+    DS.students.filter(s=>String(s.sem)===String(sem)).forEach(s=>{const k=s.grupo||'S/G';if(!byG[k])byG[k]=[];byG[k].push(s.prom);});
+    const ents=Object.entries(byG).sort((a,b)=>a[0].localeCompare(b[0]));
+    labels=ents.map(([k])=>k); values=ents.map(([,v])=>{const f=v.filter(x=>x>0);return f.length?Math.round(f.reduce((a,b)=>a+b)/f.length*100)/100:0;});
+  } else {
+    const byC={};
+    DS.students.filter(s=>String(s.sem)===String(sem)).forEach(s=>{const k=s.carrera;if(!byC[k])byC[k]=[];byC[k].push(s.prom);});
+    const ents=Object.entries(byC).sort((a,b)=>a[0].localeCompare(b[0]));
+    labels=ents.map(([k])=>k.length>18?k.slice(0,17)+'…':k); values=ents.map(([,v])=>{const f=v.filter(x=>x>0);return f.length?Math.round(f.reduce((a,b)=>a+b)/f.length*100)/100:0;});
+  }
+  const colors=values.map(v=>v>=8?'rgba(46,125,50,.8)':v>=7?'rgba(21,101,192,.8)':v>=6?'rgba(245,127,23,.8)':'rgba(198,40,40,.8)');
+  mkChart('cGrupos','bar',{labels,datasets:[{label:'Promedio',data:values,backgroundColor:colors,borderRadius:5}]},{plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:20}},y:{grid:GRID,ticks:TICK,min:5,max:10}}});
+}
+
+// ─────────────────────────────────────────────
+// ALUMNOS
+// ─────────────────────────────────────────────
+function buildAlumnosFilters(){
+  const carrs=[...new Set(DS.students.map(s=>s.carrera))].sort();
+  const sems=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const turnos=[...new Set(DS.students.map(s=>s.turno).filter(Boolean))].sort();
+  const fc=document.getElementById('fCarrera'); fc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fc.appendChild(o);});
+  const fsem=document.getElementById('fSemestre'); fsem.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent='Semestre '+s;fsem.appendChild(o);});
+  const ft=document.getElementById('fTurno'); ft.innerHTML='<option value="">Todos los turnos</option>';
+  turnos.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;ft.appendChild(o);});
+  rebuildGrupoSelect('alumnos','');
+}
+
+function rebuildGrupoSelect(ctx,sem){
+  const selId=ctx==='alumnos'?'fGrupo':'fRGrupo';
+  const noteId=ctx==='alumnos'?'fGrupoNote':'fRGrupoNote';
+  const sel=document.getElementById(selId),note=document.getElementById(noteId);
+  const semNum=sem===''?1:Number(sem),noAplica=semNum>1;
+  if(noAplica){sel.style.opacity='.4';sel.style.pointerEvents='none';sel.innerHTML='<option value="">— no aplica —</option>';note.style.display='inline-flex';}
+  else{
+    sel.style.opacity='';sel.style.pointerEvents='';note.style.display='none';
+    const grps=[...new Set(DS.students.filter(s=>String(s.sem)===String(sem||'1')).map(s=>s.grupo).filter(Boolean))].sort();
+    sel.innerHTML='<option value="">Todos los grupos</option>';
+    grps.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+  }
+}
+
+function onSemestreChange(ctx){
+  const semVal=ctx==='alumnos'?document.getElementById('fSemestre').value:document.getElementById('fRSemestre').value;
+  rebuildGrupoSelect(ctx,semVal);
+  if(ctx==='alumnos') filterStudents(); else filterRiesgo();
+}
+
+function filterStudents(){
+  const q=document.getElementById('searchSt').value.toLowerCase();
+  const fc=document.getElementById('fCarrera').value,fg=document.getElementById('fGrupo').value;
+  const fsem=document.getElementById('fSemestre').value,ft=document.getElementById('fTurno').value;
+  const fs=document.getElementById('fStatus').value,noAplica=fsem!==''&&Number(fsem)>1;
+  stFiltered=DS.students.filter(s=>{
+    if(q&&!s.nombre.toLowerCase().includes(q)&&!s.nc.includes(q)) return false;
+    if(fc&&s.carrera!==fc) return false;
+    if(fsem&&String(s.sem)!==String(fsem)) return false;
+    if(ft&&s.turno!==ft) return false;
+    if(fg&&!noAplica&&s.grupo!==fg) return false;
+    if(fs==='apro'&&s.rep>0) return false;
+    if(fs==='rep'&&s.rep===0) return false;
+    if(fs==='riesgo'&&s.rep<2) return false;
+    return true;
+  });
+  stPage=1; renderStTable();
+}
+
+function sortSt(f){
+  if(stSort.f===f) stSort.d*=-1; else{stSort.f=f;stSort.d=1;}
+  stFiltered.sort((a,b)=>typeof a[f]==='string'?a[f].localeCompare(b[f])*stSort.d:(a[f]-b[f])*stSort.d);
+  stPage=1; renderStTable();
+}
+
+function renderStTable(){
+  document.getElementById('stCount').textContent=`${stFiltered.length} alumnos`;
+  const start=(stPage-1)*PAGE,end=start+PAGE,pg=stFiltered.slice(start,end);
+  document.getElementById('tbodySt').innerHTML=pg.map(s=>`<tr onclick="openPerfil('${s.nc}')">
+    <td><div style="font-weight:700;font-size:.82rem">${capName(s.nombre)}</div><div style="font-size:.68rem;color:var(--text3);font-family:'DM Mono',monospace">${s.nc}</div></td>
+    <td style="font-size:.77rem">${s.carrera}</td>
+    <td style="font-family:'DM Mono',monospace;font-weight:700">${s.grupo||'—'}</td>
+    <td style="text-align:center;font-family:'DM Mono',monospace">${s.sem}</td>
+    <td style="font-size:.73rem;color:var(--text2)">${s.turno}</td>
+    <td style="text-align:center;font-family:'DM Mono',monospace">${s.mats}</td>
+    <td style="text-align:center">${calBadge(s.prom)}</td>
+    <td style="text-align:center">${s.rep>0?`<span style="color:var(--red);font-weight:800;font-family:'DM Mono',monospace">${s.rep}</span>`:`<span style="color:var(--green)">✓</span>`}</td>
+  </tr>`).join('');
+  renderPagin();
+}
+
+function renderPagin(){
+  const total=Math.ceil(stFiltered.length/PAGE),el=document.getElementById('paginSt');
+  if(total<=1){el.innerHTML='';return;}
+  const range=[];
+  for(let i=Math.max(1,stPage-2);i<=Math.min(total,stPage+2);i++) range.push(i);
+  let h=`<button class="pg-btn" onclick="goSt(${Math.max(1,stPage-1)})">‹</button>`;
+  if(range[0]>1){h+=`<button class="pg-btn" onclick="goSt(1)">1</button>`;if(range[0]>2)h+=`<span class="pg-info">…</span>`;}
+  range.forEach(i=>h+=`<button class="pg-btn ${i===stPage?'on':''}" onclick="goSt(${i})">${i}</button>`);
+  if(range.at(-1)<total){if(range.at(-1)<total-1)h+=`<span class="pg-info">…</span>`;h+=`<button class="pg-btn" onclick="goSt(${total})">${total}</button>`;}
+  h+=`<button class="pg-btn" onclick="goSt(${Math.min(total,stPage+1)})">›</button><span class="pg-info">${stPage}/${total}</span>`;
+  el.innerHTML=h;
+}
+function goSt(n){stPage=n;renderStTable();}
+
+// ─────────────────────────────────────────────
+// PERFIL
+// ─────────────────────────────────────────────
+function openPerfil(nc){
+  const st=DS.students.find(s=>s.nc===nc);if(!st)return;
+  const rows=DS.rawRows.filter(r=>r.nc===nc);
+  document.getElementById('modalNombre').textContent=capName(st.nombre);
+  const apro=rows.filter(r=>r.cal>=6),rep=rows.filter(r=>r.cal>0&&r.cal<6),np=rows.filter(r=>r.cal===0);
+  const pc=st.prom>=8?'#2E7D32':st.prom>=6?'#6B1A2B':st.prom>0?'#C62828':'#888';
+  document.getElementById('modalBody').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid ${pc};border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Promedio</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:${pc}">${st.prom}</div></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid var(--verde);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Aprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--verde)">${apro.length}</div></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid var(--red);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Reprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">${rep.length}</div></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #9E9E9E;border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">NP</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:#9E9E9E">${np.length}</div></div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      ${[['🏫',st.carrera],['📅','Semestre '+st.sem],['👥','Grupo '+(st.grupo||'—')],['🌅',st.turno],['🪪',st.nc]].map(([i,t])=>`<span style="background:var(--surface2);border:1px solid var(--border);padding:.25rem .7rem;border-radius:20px;font-size:.73rem;color:var(--text2)">${i} ${t}</span>`).join('')}
+    </div>
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:2px solid var(--vino)">Detalle por Asignatura</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+      <thead><tr style="background:var(--vino)">
+        <th style="padding:.5rem .75rem;text-align:left;font-size:.68rem;color:#fff;font-weight:700;text-transform:uppercase">Asignatura</th>
+        <th style="padding:.5rem .75rem;text-align:left;font-size:.68rem;color:#fff;font-weight:700;text-transform:uppercase">Docente</th>
+        <th style="padding:.5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">P1</th>
+        <th style="padding:.5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">P2</th>
+        <th style="padding:.5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">P3</th>
+        <th style="padding:.5rem;text-align:center;font-size:.68rem;color:#fff;font-weight:700">Final</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r,i)=>`<tr style="border-bottom:1px solid var(--border);background:${i%2?'var(--surface2)':'var(--white)'}">
+          <td style="padding:.5rem .75rem;font-weight:600;color:var(--text)">${r.asignatura}</td>
+          <td style="padding:.5rem .75rem;font-size:.72rem;color:var(--text2)">${capName(r.docente||'Sin asignar')}</td>
+          <td style="padding:.5rem;text-align:center;color:var(--text2)">${r.p1||'—'}</td>
+          <td style="padding:.5rem;text-align:center;color:var(--text2)">${r.p2||'—'}</td>
+          <td style="padding:.5rem;text-align:center;color:var(--text2)">${r.p3||'—'}</td>
+          <td style="padding:.5rem;text-align:center">${calBadge(r.cal)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  document.getElementById('modalPerfil').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalPerfil').classList.remove('open'); }
+document.getElementById('modalPerfil').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+
+// ─────────────────────────────────────────────
+// DOCENTES
+// ─────────────────────────────────────────────
+function renderDocentes(){
+  const q=document.getElementById('searchDoc').value.toLowerCase();
+  const sortField=document.getElementById('sortDoc')?document.getElementById('sortDoc').value:'total';
+  let filtered=DS.docentes.filter(d=>!q||d.nombre.toLowerCase().includes(q));
+  filtered=[...filtered].sort((a,b)=>{
+    if(sortField==='nombre') return a.nombre.localeCompare(b.nombre);
+    if(sortField==='apro_pct') return pct(b.apro,b.total)-pct(a.apro,a.total);
+    return (b[sortField]||0)-(a[sortField]||0);
+  });
+  document.getElementById('docCount').textContent=`${filtered.length} docentes`;
+  document.getElementById('docGrid').innerHTML=filtered.map(d=>{
+    const ap=pct(d.apro,d.total);
+    const pc=d.prom>=8.5?'#2E7D32':d.prom>=7?'#6B1A2B':'#E65100';
+    return `<div class="doc-card">
+      <div class="doc-name">${capName(d.nombre)}</div>
+      <div class="doc-stats">
+        <div class="doc-stat"><div class="doc-stat-val" style="color:${pc}">${d.prom}</div><div class="doc-stat-lbl">Promedio</div></div>
+        <div class="doc-stat"><div class="doc-stat-val" style="color:var(--text)">${d.total}</div><div class="doc-stat-lbl">Registros</div></div>
+        <div class="doc-stat"><div class="doc-stat-val" style="color:var(--purple)">${d.asigs}</div><div class="doc-stat-lbl">Asigs.</div></div>
+      </div>
+      <div class="pills">
+        <span class="pill pill-g">✓ ${d.apro} aprobados</span>
+        <span class="pill pill-r">✗ ${d.rep} reprobados</span>
+        ${d.np>0?`<span class="pill" style="background:#F5F5F5;color:#888">NP: ${d.np}</span>`:''}
+      </div>
+      <div style="font-size:.7rem;color:var(--text3);margin-top:.6rem;margin-bottom:.35rem">${ap}% aprobación</div>
+      <div class="mini-bar"><div class="mini-fill" style="width:0%;background:${colorPct(ap)};transition:width .8s cubic-bezier(.22,.68,0,1.2) ${Math.random()*.3}s" data-w="${ap}"></div></div>
+    </div>`;
+  }).join('');
+  // Animate mini bars
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.mini-fill[data-w]').forEach(el=>{
+      setTimeout(()=>{ el.style.width = el.dataset.w + '%'; }, 50);
+    });
+  });
+}
+
+// ─────────────────────────────────────────────
+// CARRERAS
+// ─────────────────────────────────────────────
+function buildCarreras(){
+  const {carreras,grupos}=DS;
+  const COLORS=['#6B1A2B','#2E7D32','#1565C0','#E65100','#6A1B9A','#00695C','#C62828','#F57F17','#0277BD','#2E7D32'];
+  mkChart('cCarrBar','bar',{labels:carreras.map(c=>c.n.length>14?c.n.slice(0,13)+'…':c.n),datasets:[{label:'Promedio',data:carreras.map(c=>c.prom),backgroundColor:'rgba(107,26,43,.8)',borderRadius:5},{label:'% Apr./10',data:carreras.map(c=>pct(c.apro,c.apro+c.rep+c.np)/10),backgroundColor:'rgba(46,125,50,.6)',borderRadius:5}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:30}},y:{grid:GRID,ticks:TICK,min:0,max:10}}});
+  mkChart('cCarrPie','doughnut',{labels:carreras.map(c=>c.n),datasets:[{data:carreras.map(c=>c.al),backgroundColor:COLORS.slice(0,carreras.length),borderWidth:2,borderColor:'#fff'}]},{plugins:{legend:{labels:{color:'#444',font:{size:10,family:'DM Mono'}}}}});
+  document.getElementById('tbCarr').innerHTML=carreras.map((c,i)=>{const tot=c.apro+c.rep+c.np,ap=pct(c.apro,tot);return`<tr><td style="font-weight:700;color:var(--vino)">${c.n}</td><td style="font-family:'DM Mono',monospace">${c.al}</td><td>${calBadge(c.prom)}</td><td style="color:var(--verde);font-family:'DM Mono',monospace">${c.apro.toLocaleString()}</td><td style="color:var(--red);font-family:'DM Mono',monospace">${c.rep.toLocaleString()}</td><td style="color:var(--text3);font-family:'DM Mono',monospace">${c.np.toLocaleString()}</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:${colorPct(ap)}">${ap}%</td></tr>`;}).join('');
+  document.getElementById('tbGrupo').innerHTML=grupos.map(g=>{const ap=pct(g.apro,g.total);return`<tr><td style="font-weight:800;font-family:'DM Mono',monospace;color:var(--vino)">${g.n}</td><td style="font-family:'DM Mono',monospace">${g.total.toLocaleString()}</td><td>${calBadge(g.prom)}</td><td style="color:var(--verde);font-family:'DM Mono',monospace">${g.apro.toLocaleString()}</td><td style="color:var(--red);font-family:'DM Mono',monospace">${g.rep.toLocaleString()}</td><td style="color:var(--text3);font-family:'DM Mono',monospace">${g.np.toLocaleString()}</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:${colorPct(ap)}">${ap}%</td></tr>`;}).join('');
+}
+
+// ─────────────────────────────────────────────
+// MAPA DE CALOR
+// ─────────────────────────────────────────────
+function buildHeatmapFilters(){
+  const carrs=[...new Set(DS.rawRows.map(r=>r.carrera))].sort();
+  const sems=[...new Set(DS.rawRows.map(r=>r.semestre).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const hc=document.getElementById('hCalorCarrera'); hc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;hc.appendChild(o);});
+  const hs=document.getElementById('hCalorSem'); hs.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent='Semestre '+s;hs.appendChild(o);});
+}
+
+function buildHeatmap(){
+  const fc=document.getElementById('hCalorCarrera').value,fs=document.getElementById('hCalorSem').value;
+  let rows=DS.rawRows.filter(r=>r.cal>0&&r.cal<6&&r.docente&&r.docente!=='SIN ASIGNAR');
+  if(fc) rows=rows.filter(r=>r.carrera===fc);
+  if(fs) rows=rows.filter(r=>String(r.semestre)===String(fs));
+  const docs=[...new Set(rows.map(r=>r.docente))].sort();
+  const asigs=[...new Set(rows.map(r=>r.asignatura))].sort();
+  const matrix={};
+  rows.forEach(r=>{if(!matrix[r.docente])matrix[r.docente]={};matrix[r.docente][r.asignatura]=(matrix[r.docente][r.asignatura]||0)+1;});
+  document.getElementById('hmInfo').textContent=`${docs.length} docentes × ${asigs.length} asignaturas`;
+  const hmc=n=>n===0?'hm-0':n<=2?'hm-1':n<=5?'hm-2':n<=10?'hm-3':'hm-4';
+  const wrap=document.getElementById('hmWrap');
+  if(!docs.length){wrap.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text2)">Sin reprobados para los filtros seleccionados</div>';return;}
+  const topAsigs=asigs.map(a=>[a,docs.reduce((s,d)=>s+(matrix[d]&&matrix[d][a]||0),0)]).sort((a,b)=>b[1]-a[1]).slice(0,20).map(([a])=>a);
+  wrap.innerHTML=`<table class="heatmap-table">
+    <thead><tr><th style="text-align:left;min-width:160px">Docente</th><th>Total</th>${topAsigs.map(a=>`<th title="${a}">${a.length>18?a.slice(0,17)+'…':a}</th>`).join('')}</tr></thead>
+    <tbody>${docs.map(d=>{const total=topAsigs.reduce((s,a)=>s+(matrix[d]&&matrix[d][a]||0),0);return`<tr><td style="text-align:left;padding:.4rem .6rem;font-weight:600;white-space:nowrap">${capName(d).length>22?capName(d).slice(0,21)+'…':capName(d)}</td><td class="${hmc(total)}">${total||''}</td>${topAsigs.map(a=>{const n=matrix[d]&&matrix[d][a]||0;return`<td class="${hmc(n)}">${n||''}</td>`;}).join('')}</tr>`;}).join('')}
+    </tbody></table>`;
+}
+
+// ─────────────────────────────────────────────
+// EN RIESGO
+// ─────────────────────────────────────────────
+function buildRiesgo(){
+  const all=DS.students;
+  const r1=all.filter(s=>s.rep===1).length,r2=all.filter(s=>s.rep===2).length;
+  const r3=all.filter(s=>s.rep===3).length,r4=all.filter(s=>s.rep>3).length;
+  const rTot=all.filter(s=>s.rep>=1).length;
+  document.getElementById('riesgoKpis').innerHTML=`
+    <div class="kpi ky"><div class="kpi-label">Con 1 reprobada</div><div class="kpi-value">${r1}</div><div class="kpi-sub">${pct(r1,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi ko"><div class="kpi-label">Con 2 reprobadas</div><div class="kpi-value">${r2}</div><div class="kpi-sub">${pct(r2,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi kr"><div class="kpi-label">Con 3 reprobadas</div><div class="kpi-value">${r3}</div><div class="kpi-sub">${pct(r3,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi kv"><div class="kpi-label">Con +3 reprobadas</div><div class="kpi-value">${r4}</div><div class="kpi-sub">${pct(r4,DS.meta.alumnos)}% del total</div></div>
+    <div class="kpi" style="border-top-color:#555"><div class="kpi-label">Total con reprobadas</div><div class="kpi-value" style="color:#333">${rTot}</div><div class="kpi-sub">${pct(rTot,DS.meta.alumnos)}% de alumnos</div></div>
+    <div class="kpi kg"><div class="kpi-label">Sin reprobadas</div><div class="kpi-value">${DS.meta.alumnos-rTot}</div><div class="kpi-sub">${pct(DS.meta.alumnos-rTot,DS.meta.alumnos)}% del total</div></div>
+  `;
+  const maxVal=Math.max(r1,r2,r3,r4,1);
+  document.getElementById('riesgoDesglose').innerHTML=`<div style="display:grid;gap:.75rem" id="desgloseGrid">
+    ${[['1 materia reprobada',r1,'#F57F17'],['2 materias reprobadas',r2,'#E65100'],['3 materias reprobadas',r3,'#C62828'],['Más de 3 reprobadas',r4,'#6B1A2B']].map(([lbl,val,col])=>`
+    <div style="display:flex;align-items:center;gap:1rem">
+      <div style="min-width:180px;font-size:.8rem;color:var(--text)">${lbl}</div>
+      <div style="flex:1;height:10px;background:var(--surface3);border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.round(val/maxVal*100)}%;background:${col};border-radius:5px"></div></div>
+      <div style="min-width:60px;text-align:right;font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:${col}">${val} <span style="font-size:.68rem;color:var(--text3);font-weight:400">(${pct(val,DS.meta.alumnos)}%)</span></div>
+    </div>`).join('')}
+  </div>`;
+  const carrs=[...new Set(DS.students.map(s=>s.carrera))].sort();
+  const sems=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const turnos=[...new Set(DS.students.map(s=>s.turno).filter(Boolean))].sort();
+  const frc=document.getElementById('fRCarrera'); frc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;frc.appendChild(o);});
+  const frs=document.getElementById('fRSemestre'); frs.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent='Semestre '+s;frs.appendChild(o);});
+  const frt=document.getElementById('fRTurno'); frt.innerHTML='<option value="">Todos los turnos</option>';
+  turnos.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;frt.appendChild(o);});
+  rebuildGrupoSelect('riesgo','');
+  filterRiesgo();
+}
+
+function filterRiesgo(){
+  const fc=document.getElementById('fRCarrera').value,fg=document.getElementById('fRGrupo').value;
+  const fsem=document.getElementById('fRSemestre').value,ft=document.getElementById('fRTurno').value;
+  const fn=document.getElementById('fRNivel').value,noAplica=fsem!==''&&Number(fsem)>1;
+  let list=DS.students.filter(s=>s.rep>=1).sort((a,b)=>b.rep-a.rep);
+  if(fc) list=list.filter(s=>s.carrera===fc);
+  if(fsem) list=list.filter(s=>String(s.sem)===String(fsem));
+  if(ft) list=list.filter(s=>s.turno===ft);
+  if(fg&&!noAplica) list=list.filter(s=>s.grupo===fg);
+  if(fn==='1') list=list.filter(s=>s.rep===1);
+  else if(fn==='2') list=list.filter(s=>s.rep===2);
+  else if(fn==='3') list=list.filter(s=>s.rep===3);
+  else if(fn==='4') list=list.filter(s=>s.rep>3);
+  document.getElementById('riesgoCount').textContent=`${list.length} alumnos`;
+  const rc=r=>r===1?'#F57F17':r===2?'#E65100':r===3?'#C62828':'#6B1A2B';
+  const rl=r=>r===1?'#FFF8E1':r===2?'#FFF3E0':r===3?'#FFEBEE':'#fdf5f6';
+  document.getElementById('riskGrid').innerHTML=list.slice(0,120).map(s=>`
+    <div class="risk-card" style="border-left-color:${rc(s.rep)};background:${rl(s.rep)}" onclick="openPerfil('${s.nc}')">
+      <div class="risk-name">${capName(s.nombre)}</div>
+      <div class="risk-meta">${s.nc} · ${s.carrera} · Sem ${s.sem||'—'} · Grupo ${s.grupo||'—'} · ${s.turno}</div>
+      <div class="pills">
+        <span class="pill" style="background:${rc(s.rep)}22;color:${rc(s.rep)};border:1px solid ${rc(s.rep)}44">⚠ ${s.rep} reprobada${s.rep>1?'s':''}</span>
+        <span class="pill pill-b">📚 ${s.mats} materias</span>
+        ${calBadge(s.prom)}
+      </div>
+    </div>`).join('');
+  window._riesgoList=list;
+}
+
+// ─────────────────────────────────────────────
+// EXPORTAR EXCEL
+// ─────────────────────────────────────────────
+function exportRiesgoExcel(){
+  const list=window._riesgoList||DS.students.filter(s=>s.rep>=1);
+  const rows=[['N° Control','Nombre','Carrera','Semestre','Grupo','Turno','Promedio','Reprobadas','Total Materias']];
+  list.forEach(s=>rows.push([s.nc,capName(s.nombre),s.carrera,s.sem,s.grupo||'—',s.turno,s.prom,s.rep,s.mats]));
+  const bom='\uFEFF';
+  const csv=bom+rows.map(r=>r.map(v=>typeof v==='string'&&v.includes(',')?`"${v}"`:v).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`riesgo_${DS.meta.plantel.replace(/\s+/g,'_')}.csv`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+// ─────────────────────────────────────────────
+// COMPARAR PERÍODOS
+// ─────────────────────────────────────────────
+let compareData={};
+function loadCompare(slot,file){
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=async e=>{
+    let txt=e.target.result;
+    if(txt.includes('\uFFFD')){const r2=new FileReader();r2.onload=e2=>processCompare(slot,e2.target.result);r2.readAsText(file,'iso-8859-1');return;}
+    processCompare(slot,txt);
+  };
+  r.readAsText(file,'utf-8');
+}
+function processCompare(slot,content){
+  let rows=content.trim().startsWith('<')||content.toLowerCase().includes('<table')?parseHTMLTable(content):parseCSV(content);
+  const ds=buildDataset(rows);
+  compareData[slot]=ds;
+  document.getElementById(`slotName${slot}`).textContent=ds.meta.periodo||ds.meta.plantel;
+  document.getElementById(`slot${slot}`).classList.add('loaded');
+  if(compareData[1]&&compareData[2]) renderCompare();
+}
+function renderCompare(){
+  const A=compareData[1],B=compareData[2];
+  document.getElementById('compareHint').style.display='none';
+  document.getElementById('compareResults').style.display='block';
+  const delta=(b,a,fmt)=>{const d=b-a,s=d>0?'+':'',cl=d>0?'delta-pos':d<0?'delta-neg':'delta-neu';return`<span class="${cl}">${s}${fmt(d)}</span>`;};
+  document.getElementById('compareKpis').innerHTML=`
+    <div class="kpi kv"><div class="kpi-label">Promedio A → B</div><div class="kpi-value">${B.kpis.prom}</div><div class="kpi-sub">Antes: ${A.kpis.prom} ${delta(B.kpis.prom,A.kpis.prom,d=>Math.abs(d).toFixed(2))}</div></div>
+    <div class="kpi kg"><div class="kpi-label">Aprobados A → B</div><div class="kpi-value">${B.kpis.apro_pct}%</div><div class="kpi-sub">Antes: ${A.kpis.apro_pct}% ${delta(B.kpis.apro_pct,A.kpis.apro_pct,d=>Math.abs(d).toFixed(1)+'%')}</div></div>
+    <div class="kpi kr"><div class="kpi-label">Reprobados A → B</div><div class="kpi-value">${B.kpis.rep_pct}%</div><div class="kpi-sub">Antes: ${A.kpis.rep_pct}% ${delta(B.kpis.rep_pct,A.kpis.rep_pct,d=>Math.abs(d).toFixed(1)+'%')}</div></div>
+    <div class="kpi" style="border-top-color:var(--purple)"><div class="kpi-label">Alumnos A → B</div><div class="kpi-value" style="color:var(--purple)">${B.meta.alumnos}</div><div class="kpi-sub">Antes: ${A.meta.alumnos} ${delta(B.meta.alumnos,A.meta.alumnos,d=>Math.abs(d))}</div></div>
+  `;
+  const allC=[...new Set([...A.carreras.map(c=>c.n),...B.carreras.map(c=>c.n)])].sort();
+  const getC=(ds,n,f)=>{const c=ds.carreras.find(x=>x.n===n);return c?f(c):null;};
+  mkChart('cCompCarr','bar',{labels:allC.map(c=>c.length>14?c.slice(0,13)+'…':c),datasets:[{label:A.meta.periodo,data:allC.map(c=>getC(A,c,x=>x.prom)),backgroundColor:'rgba(107,26,43,.6)',borderRadius:4},{label:B.meta.periodo,data:allC.map(c=>getC(B,c,x=>x.prom)),backgroundColor:'rgba(46,125,50,.7)',borderRadius:4}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK,min:0,max:10}}});
+  mkChart('cCompRep','bar',{labels:allC.map(c=>c.length>14?c.slice(0,13)+'…':c),datasets:[{label:A.meta.periodo,data:allC.map(c=>getC(A,c,x=>pct(x.rep,x.apro+x.rep+x.np))),backgroundColor:'rgba(198,40,40,.5)',borderRadius:4},{label:B.meta.periodo,data:allC.map(c=>getC(B,c,x=>pct(x.rep,x.apro+x.rep+x.np))),backgroundColor:'rgba(230,81,0,.7)',borderRadius:4}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK,max:100}}});
+  document.getElementById('tbCompare').innerHTML=allC.map((n,i)=>{
+    const a=A.carreras.find(x=>x.n===n),b=B.carreras.find(x=>x.n===n);
+    const dp=a&&b?b.prom-a.prom:null,dr=a&&b?b.rep-a.rep:null;
+    const dpc=dp===null?'#888':dp>0?'#2E7D32':'#C62828',drc=dr===null?'#888':dr<0?'#2E7D32':'#C62828';
+    const td=(x='')=>`padding:7px 9px;border-bottom:1px solid #eee;background:${i%2?'#fdf5f6':'#fff'};${x}`;
+    return`<tr><td style="${td()};font-weight:700;color:var(--vino)">${n}</td><td style="${td()};text-align:center">${a?a.prom:'—'}</td><td style="${td()};text-align:center;font-weight:700">${b?b.prom:'—'}</td><td style="${td()};text-align:center;font-weight:700;color:${dpc}">${dp!==null?(dp>0?'+':'')+dp.toFixed(2):'—'}</td><td style="${td()};text-align:center">${a?a.rep:'—'}</td><td style="${td()};text-align:center;font-weight:700">${b?b.rep:'—'}</td><td style="${td()};text-align:center;font-weight:700;color:${drc}">${dr!==null?(dr>0?'+':'')+dr:'—'}</td><td style="${td()};text-align:center">${a?pct(a.apro,a.apro+a.rep+a.np)+'%':'—'}</td><td style="${td()};text-align:center;font-weight:700">${b?pct(b.apro,b.apro+b.rep+b.np)+'%':'—'}</td></tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
