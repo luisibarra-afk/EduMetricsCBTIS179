@@ -270,6 +270,8 @@ tr:last-child td { border-bottom:none; }
 /* PRINT BTN PER PAGE */
 .page-print-btn { display:inline-flex; align-items:center; gap:.4rem; background:var(--surface); border:1px solid var(--border); color:var(--text2); font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:600; padding:.42rem .9rem; border-radius:8px; cursor:pointer; transition:all .2s; }
 .page-print-btn:hover { border-color:var(--accent); color:var(--accent); background:#fff; }
+.print-btn { display:inline-flex; align-items:center; gap:.45rem; background:transparent; border:1.5px solid var(--accent); color:var(--accent); font-family:'DM Sans',sans-serif; font-size:.78rem; font-weight:700; padding:.42rem 1rem; border-radius:20px; cursor:pointer; transition:all .2s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; letter-spacing:.01em; }
+.print-btn:hover { background:var(--accent); color:#fff; box-shadow:0 4px 14px rgba(107,17,48,.25); transform:translateY(-1px); }
 
 /* GRUPO TABS */
 .grupo-tab { background:var(--surface2); border:1px solid var(--border); color:var(--text2); font-family:'DM Mono',monospace; font-size:.68rem; font-weight:600; padding:.25rem .65rem; border-radius:6px; cursor:pointer; transition:all .18s; }
@@ -764,9 +766,28 @@ function normCarrera(s){
   if(u.includes('PROGRAMAC')) return 'PROGRAMACIÓN';
   if(u.includes('TRABAJO SOCIAL')) return 'TRABAJO SOCIAL';
   if(u.includes('RECURSOS HUMANOS')||u.includes('ADMINISTRAC')) return 'ADM. RR.HH.';
+  if(u.includes('CIBERSEG')) return 'CIBERSEGURIDAD';
   if(u.includes('BASICO')||u.includes('PROPEDEU')||u.includes('BSICO')) return 'BÁS./PROPEDÉUTICO';
   // fallback: capitalize and trim
   return s.trim().split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+}
+// Resuelve la carrera real de alumnos de 1er semestre a partir del grupo
+// SISEEMS los reporta como BÁS./PROPEDÉUTICO, pero el grupo indica la carrera:
+// 1A=ADM.RR.HH. · 1B=Trabajo Social · 1C=Arquitectura · 1D=Programación
+// 1E mat=Electricidad · 1E vesp=Mecatrónica · 1F=Ciberseguridad
+function resolveCarreraBasico(grupo, turno){
+  const m=/^1\s*([A-F])/i.exec((grupo||'').trim());
+  if(!m) return 'BÁS./PROPEDÉUTICO';
+  const t=(turno||'').toUpperCase();
+  switch(m[1].toUpperCase()){
+    case 'A': return 'ADM. RR.HH.';
+    case 'B': return 'TRABAJO SOCIAL';
+    case 'C': return 'ARQUITECTURA';
+    case 'D': return 'PROGRAMACIÓN';
+    case 'E': return (t.includes('VESP')||t.includes('TARDE'))?'MECATRÓNICA':'ELECTRICIDAD';
+    case 'F': return 'CIBERSEGURIDAD';
+    default:  return 'BÁS./PROPEDÉUTICO';
+  }
 }
 
 // ── MAIN DATASET BUILDER ──
@@ -806,12 +827,15 @@ function buildDataset(rows){
     if(!clavePlantel){ const cv=g(row,c.clave); if(cv&&cv.length>2) clavePlantel=cv.trim().toUpperCase(); }
     if(!periodoName){ const pn=g(row,c.periodo).trim(); if(pn&&pn.length>3&&!/^\d+\.?\d*$/.test(pn)) periodoName=pn.toUpperCase(); }
 
+    const grupoVal=g(row,c.grupo).trim(), turnoVal=g(row,c.turno).trim();
+    let carreraVal=normCarrera(carRaw||'SIN CARRERA');
+    if(carreraVal==='BÁS./PROPEDÉUTICO') carreraVal=resolveCarreraBasico(grupoVal,turnoVal);
     data.push({
       plantel: g(row,c.plantel).trim(),
-      carrera: normCarrera(carRaw||'SIN CARRERA'),
-      turno:   g(row,c.turno).trim(),
+      carrera: carreraVal,
+      turno:   turnoVal,
       semestre:g(row,c.semestre).trim(),
-      grupo:   g(row,c.grupo).trim(),
+      grupo:   grupoVal,
       nc:      nc_val.trim(),
       nombre:  fullName(row),
       asignatura: g(row,c.asignatura).trim()||'SIN ASIGNATURA',
