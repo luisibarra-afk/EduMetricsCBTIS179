@@ -890,18 +890,22 @@ function buildDataset(rows){
   if(!periodoName) periodoName = 'PERÍODO ESCOLAR';
 
   // Max cal por clase — si >0, la clase ya fue calificada (cal=0 ahí = NP real)
+  // NP detection: tipo dice "NP" (explícito) O cal=0 en clase ya calificada (implícito)
   const maxCalByClass = {};
-  for(const d of data){ const k=d.asignatura+'||'+d.grupo; maxCalByClass[k]=Math.max(maxCalByClass[k]||0, d.cal); }
-  function esNP(d){ return d.cal===0 && ((d.tipo&&d.tipo.toUpperCase().includes('NP'))||(maxCalByClass[d.asignatura+'||'+d.grupo]||0)>0); }
+  for(const d of data){
+    if(d.tipo&&d.tipo.toUpperCase().includes('NP')) continue; // no contar NP explícitos como calificación de clase
+    const k=d.asignatura+'||'+d.grupo; maxCalByClass[k]=Math.max(maxCalByClass[k]||0, d.cal);
+  }
+  function esNP(d){ return (d.tipo&&d.tipo.toUpperCase().includes('NP'))||(d.cal===0&&(maxCalByClass[d.asignatura+'||'+d.grupo]||0)>0); }
   for(const d of data) d.isNP = esNP(d);
 
   // ── AGGREGATIONS ──
-  // Students
+  // Students — solo califs no-NP para promedio/reprobadas
   const uniq = {};
   for(const d of data){
     if(!d.nc) continue;
     if(!uniq[d.nc]) uniq[d.nc]={nombre:d.nombre,carrera:d.carrera,grupo:d.grupo,sem:d.semestre,turno:d.turno,califs:[],mats:new Set()};
-    uniq[d.nc].califs.push(d.cal);
+    if(!d.isNP) uniq[d.nc].califs.push(d.cal);
     uniq[d.nc].mats.add(d.asignatura);
   }
   const students = [];
@@ -917,14 +921,13 @@ function buildDataset(rows){
   for(const d of data){
     if(!d.docente || d.docente === 'SIN ASIGNAR') continue;
     if(!byDoc[d.docente]) byDoc[d.docente]={cals:[],np:0,asigs:new Set()};
-    byDoc[d.docente].cals.push(d.cal);
-    if(d.isNP) byDoc[d.docente].np++;
+    if(!d.isNP) byDoc[d.docente].cals.push(d.cal); else byDoc[d.docente].np++;
     byDoc[d.docente].asigs.add(d.asignatura);
   }
   const docentes = [];
   for(const [n,v] of Object.entries(byDoc)){
     const vc=v.cals.filter(x=>x>0);
-    docentes.push({nombre:n,total:v.cals.length,prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
+    docentes.push({nombre:n,total:v.cals.length+v.np,prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
       apro:v.cals.filter(x=>x>=6).length,rep:v.cals.filter(x=>x>0&&x<6).length,np:v.np,asigs:v.asigs.size});
   }
   docentes.sort((a,b)=>b.total-a.total);
@@ -934,8 +937,7 @@ function buildDataset(rows){
   for(const d of data){
     const k=d.carrera;
     if(!byC[k]) byC[k]={cals:[],np:0,ncs:new Set(),turnos:new Set()};
-    byC[k].cals.push(d.cal);
-    if(d.isNP) byC[k].np++;
+    if(!d.isNP) byC[k].cals.push(d.cal); else byC[k].np++;
     byC[k].ncs.add(d.nc);
     if(d.turno) byC[k].turnos.add(d.turno.toLowerCase());
   }
@@ -952,13 +954,12 @@ function buildDataset(rows){
   for(const d of data){
     const k=d.grupo||'S/G';
     if(!byG[k]) byG[k]={cals:[],np:0,sem:d.semestre,ncs:new Set()};
-    byG[k].cals.push(d.cal);
-    if(d.isNP) byG[k].np++;
+    if(!d.isNP) byG[k].cals.push(d.cal); else byG[k].np++;
     byG[k].ncs.add(d.nc);
   }
   const grupos = Object.entries(byG).map(([n,v])=>{
     const vc=v.cals.filter(x=>x>0);
-    return {n, sem:v.sem, al:v.ncs.size, total:v.cals.length,
+    return {n, sem:v.sem, al:v.ncs.size, total:v.cals.length+v.np,
       prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
       apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.np};
   }).sort((a,b)=>a.n.localeCompare(b.n));
@@ -966,8 +967,9 @@ function buildDataset(rows){
   // Hist
   const hist={NP:0,'1-5':0,'6':0,'7':0,'8':0,'9':0,'10':0};
   for(const d of data){
+    if(d.isNP){ hist.NP++; continue; }
     const c=d.cal;
-    if(c===0 && d.isNP) hist.NP++;
+    if(c===0) continue; // sin calificar, ignorar
     else if(c<6) hist['1-5']++;
     else if(c<7) hist['6']++;
     else if(c<8) hist['7']++;
@@ -987,13 +989,16 @@ function buildDataset(rows){
     return [n,v.cals.filter(x=>x>0&&x<6).length,v.cals.length,vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0];
   }).sort((a,b)=>b[1]-a[1]).slice(0,12);
 
-  const total=data.length, con=data.filter(d=>d.cal>0);
+  const total=data.length, con=data.filter(d=>d.cal>0&&!d.isNP);
+  const npCount=data.filter(d=>d.isNP).length;
+  const aproCount=data.filter(d=>d.cal>=6&&!d.isNP).length;
+  const repCount=data.filter(d=>d.cal>0&&d.cal<6&&!d.isNP).length;
   return {
     meta:{plantel:plantelName,clave:clavePlantel,periodo:periodoName,total,alumnos:students.length,docentes:docentes.length,asignaturas:Object.keys(byA).length},
     kpis:{prom:con.length?Math.round(con.reduce((s,d)=>s+d.cal,0)/con.length*100)/100:0,
-      apro:data.filter(d=>d.cal>=6).length,apro_pct:Math.round(data.filter(d=>d.cal>=6).length/total*100*10)/10,
-      rep:data.filter(d=>d.cal>0&&d.cal<6).length,rep_pct:Math.round(data.filter(d=>d.cal>0&&d.cal<6).length/total*100*10)/10,
-      np:data.filter(d=>d.isNP).length,np_pct:Math.round(data.filter(d=>d.isNP).length/total*100*10)/10},
+      apro:aproCount,apro_pct:Math.round(aproCount/total*100*10)/10,
+      rep:repCount,rep_pct:Math.round(repCount/total*100*10)/10,
+      np:npCount,np_pct:Math.round(npCount/total*100*10)/10},
     hist,carreras,grupos,docentes,students,asigRep,rawRows:data
   };
 }
