@@ -446,7 +446,10 @@ tr:last-child td { border-bottom:none; }
     <div id="page-docentes" class="page">
       <div class="sec-head">
         <div class="sec-head-left"><div class="sec-title">👨‍🏫 Docentes</div><div class="sec-sub">Resultados académicos por docente</div></div>
-        <button class="print-btn" onclick="printPage('docentes')">🖨 Imprimir Docentes</button>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="print-btn" onclick="printPage('docentes')">🖨 Imprimir Docentes</button>
+          <button class="print-btn" onclick="exportDocentesExcel()">📥 Exportar Excel</button>
+        </div>
       </div>
       <div class="filter-row">
         <input class="search-input" type="text" placeholder="🔍 Buscar docente..." id="searchDoc" oninput="renderDocentes()" style="width:260px">
@@ -1836,7 +1839,13 @@ function printPage(tipo){
 
   } else if(tipo==='docentes'){
     const q=document.getElementById('searchDoc').value.toLowerCase();
-    const list=DS.docentes.filter(d=>!q||d.nombre.toLowerCase().includes(q));
+    const sortField=document.getElementById('sortDoc')?document.getElementById('sortDoc').value:'total';
+    let list=DS.docentes.filter(d=>!q||d.nombre.toLowerCase().includes(q));
+    list=[...list].sort((a,b)=>{
+      if(sortField==='nombre') return a.nombre.localeCompare(b.nombre);
+      if(sortField==='apro_pct') return pct(b.apro,b.total)-pct(a.apro,a.total);
+      return (b[sortField]||0)-(a[sortField]||0);
+    });
     body=`${HDR}
     <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:10px">Análisis de Desempeño Docente</h2>
     <table style="${T}"><thead><tr><th style="${TH}">Docente</th><th style="${TH}">Registros</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th><th style="${TH}">Asigs.</th></tr></thead><tbody>
@@ -2285,6 +2294,26 @@ function exportRiesgoExcel(){
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`riesgo_${DS.meta.plantel.replace(/\s+/g,'_')}.csv`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+function exportDocentesExcel(){
+  const q=document.getElementById('searchDoc').value.toLowerCase();
+  const sortField=document.getElementById('sortDoc')?document.getElementById('sortDoc').value:'total';
+  let list=DS.docentes.filter(d=>!q||d.nombre.toLowerCase().includes(q));
+  list=[...list].sort((a,b)=>{
+    if(sortField==='nombre') return a.nombre.localeCompare(b.nombre);
+    if(sortField==='apro_pct') return pct(b.apro,b.total)-pct(a.apro,a.total);
+    return (b[sortField]||0)-(a[sortField]||0);
+  });
+  const periodo=DS.meta.periodo||'';
+  const rows=[['Docente','Registros','Promedio','Aprobados','Reprobados','NP','% Aprobación','Asignaturas']];
+  list.forEach(d=>rows.push([capName(d.nombre),d.total,d.prom,d.apro,d.rep,d.np,pct(d.apro,d.total)+'%',d.asigs]));
+  const bom='\uFEFF';
+  const csv=bom+rows.map(r=>r.map(v=>typeof v==='string'&&(v.includes(',')||v.includes('"'))?`"${v.replace(/"/g,'""')}"`:v).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`docentes_${DS.meta.plantel.replace(/\s+/g,'_')}_${periodo.replace(/\s+/g,'_')}.csv`;
   a.click();URL.revokeObjectURL(a.href);
 }
 
