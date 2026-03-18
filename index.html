@@ -920,15 +920,16 @@ function buildDataset(rows){
   const byDoc = {};
   for(const d of data){
     if(!d.docente || d.docente === 'SIN ASIGNAR') continue;
-    if(!byDoc[d.docente]) byDoc[d.docente]={cals:[],asigs:new Set()};
+    if(!byDoc[d.docente]) byDoc[d.docente]={cals:[],asigs:new Set(),npReal:0,pend:0};
     byDoc[d.docente].cals.push(d.cal);
     byDoc[d.docente].asigs.add(d.asignatura);
+    if(d.cal===0){ if(d.tipo&&d.tipo.toUpperCase().includes('NP')) byDoc[d.docente].npReal++; else byDoc[d.docente].pend++; }
   }
   const docentes = [];
   for(const [n,v] of Object.entries(byDoc)){
     const vc=v.cals.filter(x=>x>0);
     docentes.push({nombre:n,total:v.cals.length,prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
-      apro:v.cals.filter(x=>x>=6).length,rep:v.cals.filter(x=>x>0&&x<6).length,np:v.cals.filter(x=>x===0).length,asigs:v.asigs.size});
+      apro:v.cals.filter(x=>x>=6).length,rep:v.cals.filter(x=>x>0&&x<6).length,np:v.npReal,pend:v.pend,asigs:v.asigs.size});
   }
   docentes.sort((a,b)=>b.total-a.total);
 
@@ -936,39 +937,42 @@ function buildDataset(rows){
   const byC = {};
   for(const d of data){
     const k=d.carrera;
-    if(!byC[k]) byC[k]={cals:[],ncs:new Set(),turnos:new Set()};
+    if(!byC[k]) byC[k]={cals:[],ncs:new Set(),turnos:new Set(),npReal:0,pend:0};
     byC[k].cals.push(d.cal);
     byC[k].ncs.add(d.nc);
     if(d.turno) byC[k].turnos.add(d.turno.toLowerCase());
+    if(d.cal===0){ if(d.tipo&&d.tipo.toUpperCase().includes('NP')) byC[k].npReal++; else byC[k].pend++; }
   }
   const carreras = [];
   for(const [n,v] of Object.entries(byC)){
     const vc=v.cals.filter(x=>x>0);
     carreras.push({n, turno:[...v.turnos].sort().join(' / '),
       al:v.ncs.size, prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
-      apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.cals.filter(x=>x===0).length});
+      apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.npReal, pend:v.pend});
   }
 
   // Grupos — incluye semestre para contexto
   const byG = {};
   for(const d of data){
     const k=d.grupo||'S/G';
-    if(!byG[k]) byG[k]={cals:[],sem:d.semestre,ncs:new Set()};
+    if(!byG[k]) byG[k]={cals:[],sem:d.semestre,ncs:new Set(),npReal:0,pend:0};
     byG[k].cals.push(d.cal);
     byG[k].ncs.add(d.nc);
+    if(d.cal===0){ if(d.tipo&&d.tipo.toUpperCase().includes('NP')) byG[k].npReal++; else byG[k].pend++; }
   }
   const grupos = Object.entries(byG).map(([n,v])=>{
     const vc=v.cals.filter(x=>x>0);
     return {n, sem:v.sem, al:v.ncs.size, total:v.cals.length,
       prom:vc.length?Math.round(vc.reduce((a,b)=>a+b)/vc.length*100)/100:0,
-      apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.cals.filter(x=>x===0).length};
+      apro:v.cals.filter(x=>x>=6).length, rep:v.cals.filter(x=>x>0&&x<6).length, np:v.npReal, pend:v.pend};
   }).sort((a,b)=>a.n.localeCompare(b.n));
 
   // Hist
-  const hist={NP:0,'1-5':0,'6':0,'7':0,'8':0,'9':0,'10':0};
+  const hist={'S/C':0,NP:0,'1-5':0,'6':0,'7':0,'8':0,'9':0,'10':0};
   for(const d of data){
     const c=d.cal;
-    if(c===0) hist.NP++;
+    if(c===0&&d.tipo&&d.tipo.toUpperCase().includes('NP')) hist.NP++;
+    else if(c===0) hist['S/C']++;
     else if(c<6) hist['1-5']++;
     else if(c<7) hist['6']++;
     else if(c<8) hist['7']++;
@@ -994,7 +998,8 @@ function buildDataset(rows){
     kpis:{prom:con.length?Math.round(con.reduce((s,d)=>s+d.cal,0)/con.length*100)/100:0,
       apro:data.filter(d=>d.cal>=6).length,apro_pct:Math.round(data.filter(d=>d.cal>=6).length/total*100*10)/10,
       rep:data.filter(d=>d.cal>0&&d.cal<6).length,rep_pct:Math.round(data.filter(d=>d.cal>0&&d.cal<6).length/total*100*10)/10,
-      np:data.filter(d=>d.cal===0).length,np_pct:Math.round(data.filter(d=>d.cal===0).length/total*100*10)/10},
+      np:data.filter(d=>d.cal===0&&d.tipo&&d.tipo.toUpperCase().includes('NP')).length,np_pct:Math.round(data.filter(d=>d.cal===0&&d.tipo&&d.tipo.toUpperCase().includes('NP')).length/total*100*10)/10,
+      pend:data.filter(d=>d.cal===0&&(!d.tipo||!d.tipo.toUpperCase().includes('NP'))).length,pend_pct:Math.round(data.filter(d=>d.cal===0&&(!d.tipo||!d.tipo.toUpperCase().includes('NP'))).length/total*100*10)/10},
     hist,carreras,grupos,docentes,students,asigRep,rawRows:data
   };
 }
@@ -1078,8 +1083,9 @@ function showPage(name){
 // ─────────────────────────────────────────────
 // UTILS
 // ─────────────────────────────────────────────
-function calBadge(c){
-  if(c===0) return `<span class="cal-badge cal-np">NP</span>`;
+function calBadge(c,tipo){
+  if(c===0&&tipo&&tipo.toUpperCase().includes('NP')) return `<span class="cal-badge cal-np">NP</span>`;
+  if(c===0) return `<span class="cal-badge" style="background:#E0E0E0;color:#757575;font-size:.65rem">S/C</span>`;
   if(c<6)  return `<span class="cal-badge cal-rep">${c.toFixed(1)}</span>`;
   if(c<7)  return `<span class="cal-badge cal-6">${c.toFixed(1)}</span>`;
   if(c<8)  return `<span class="cal-badge cal-7">${c.toFixed(1)}</span>`;
@@ -1108,6 +1114,7 @@ function buildDash(){
     <div class="kpi"><div class="kpi-accent-bar" style="background:var(--green)"></div><div class="kpi-glow" style="background:var(--green)"></div><div class="kpi-label">Aprobados</div><div class="kpi-value" style="color:var(--green)" data-target="${kpis.apro_pct}">0</div><div class="kpi-sub">${kpis.apro.toLocaleString()} calificaciones · <strong>%</strong></div></div>
     <div class="kpi"><div class="kpi-accent-bar" style="background:var(--red)"></div><div class="kpi-glow" style="background:var(--red)"></div><div class="kpi-label">Reprobados</div><div class="kpi-value" style="color:var(--red)" data-target="${kpis.rep_pct}">0</div><div class="kpi-sub">${kpis.rep.toLocaleString()} calificaciones · <strong>%</strong></div></div>
     <div class="kpi"><div class="kpi-accent-bar" style="background:var(--yellow)"></div><div class="kpi-glow" style="background:var(--yellow)"></div><div class="kpi-label">No Presentaron</div><div class="kpi-value" style="color:var(--yellow)" data-target="${kpis.np_pct}">0</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros · <strong>%</strong></div></div>
+    ${kpis.pend>0?`<div class="kpi"><div class="kpi-accent-bar" style="background:#9E9E9E"></div><div class="kpi-glow" style="background:#9E9E9E"></div><div class="kpi-label">Sin Calificar</div><div class="kpi-value" style="color:#9E9E9E" data-target="${kpis.pend_pct}">0</div><div class="kpi-sub">${kpis.pend.toLocaleString()} registros · <strong>%</strong></div></div>`:''}
     <div class="kpi"><div class="kpi-accent-bar" style="background:#7b1fa2"></div><div class="kpi-glow" style="background:#7b1fa2"></div><div class="kpi-label">Docentes</div><div class="kpi-value" style="color:#7b1fa2" data-target="${meta.docentes}">0</div><div class="kpi-sub">${meta.asignaturas} asignaturas</div></div>
   `;
   animateCounters();
@@ -1246,7 +1253,7 @@ function openPerfil(nc){
   const st=DS.students.find(s=>s.nc===nc); if(!st) return;
   const rows=DS.rawRows.filter(r=>r.nc===nc);
   document.getElementById('modalNombre').textContent=capName(st.nombre);
-  const apro=rows.filter(r=>r.cal>=6), rep=rows.filter(r=>r.cal>0&&r.cal<6), np=rows.filter(r=>r.cal===0);
+  const apro=rows.filter(r=>r.cal>=6), rep=rows.filter(r=>r.cal>0&&r.cal<6), np=rows.filter(r=>r.cal===0&&r.tipo&&r.tipo.toUpperCase().includes('NP')), pend=rows.filter(r=>r.cal===0&&(!r.tipo||!r.tipo.toUpperCase().includes('NP')));
   const prom=st.prom;
   const promColor=prom>=8?'#22c55e':prom>=6?'#4f8ef7':prom>0?'#f87171':'#8892a4';
   document.getElementById('modalBody').innerHTML=`
@@ -1255,6 +1262,7 @@ function openPerfil(nc){
       <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Aprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--green)">${apro.length}</div></div>
       <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Reprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">${rep.length}</div></div>
       <div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">NP</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--text2)">${np.length}</div></div>
+      ${pend.length>0?`<div style="background:var(--surface2);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Sin Calif.</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:#9E9E9E">${pend.length}</div></div>`:''}
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;font-size:.75rem;color:var(--text2)">
       <span style="background:var(--surface2);padding:.25rem .7rem;border-radius:20px">🏫 ${st.carrera}</span>
@@ -1280,7 +1288,7 @@ function openPerfil(nc){
           <td style="padding:.5rem;text-align:center">${r.p1||'—'}</td>
           <td style="padding:.5rem;text-align:center">${r.p2||'—'}</td>
           <td style="padding:.5rem;text-align:center">${r.p3||'—'}</td>
-          <td style="padding:.5rem;text-align:center">${calBadge(r.cal)}</td>
+          <td style="padding:.5rem;text-align:center">${calBadge(r.cal,r.tipo)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -1997,8 +2005,9 @@ function printPage(tipo){
 // ─────────────────────────────────────────────
 // UTILS
 // ─────────────────────────────────────────────
-function calBadge(c){
-  if(c===0) return `<span class="cal-badge cal-np">NP</span>`;
+function calBadge(c,tipo){
+  if(c===0&&tipo&&tipo.toUpperCase().includes('NP')) return `<span class="cal-badge cal-np">NP</span>`;
+  if(c===0) return `<span class="cal-badge" style="background:#E0E0E0;color:#757575;font-size:.65rem">S/C</span>`;
   if(c<6)  return `<span class="cal-badge cal-rep">${c.toFixed(1)}</span>`;
   if(c<7)  return `<span class="cal-badge cal-6">${c.toFixed(1)}</span>`;
   if(c<8)  return `<span class="cal-badge cal-7">${c.toFixed(1)}</span>`;
@@ -2027,6 +2036,7 @@ function buildDash(){
     <div class="kpi kg"><div class="kpi-label">Aprobados</div><div class="kpi-value">${kpis.apro_pct}%</div><div class="kpi-sub">${kpis.apro.toLocaleString()} calificaciones</div></div>
     <div class="kpi kr"><div class="kpi-label">Reprobados</div><div class="kpi-value">${kpis.rep_pct}%</div><div class="kpi-sub">${kpis.rep.toLocaleString()} calificaciones</div></div>
     <div class="kpi ky"><div class="kpi-label">No Presentaron</div><div class="kpi-value">${kpis.np_pct}%</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros</div></div>
+    ${kpis.pend>0?`<div class="kpi" style="border-top-color:#9E9E9E"><div class="kpi-label">Sin Calificar</div><div class="kpi-value" style="color:#9E9E9E">${kpis.pend_pct}%</div><div class="kpi-sub">${kpis.pend.toLocaleString()} registros</div></div>`:''}
     <div class="kpi kp"><div class="kpi-label">Docentes</div><div class="kpi-value">${meta.docentes}</div><div class="kpi-sub">${meta.asignaturas} asignaturas</div></div>
   `;
   mkChart('cHist','bar',{labels:Object.keys(hist),datasets:[{data:Object.values(hist),backgroundColor:['#9E9E9E','#C62828','#2E7D32','#1565C0','#0277BD','#00838F','#1B5E20'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}});
@@ -2157,7 +2167,7 @@ function openPerfil(nc){
   const st=DS.students.find(s=>s.nc===nc);if(!st)return;
   const rows=DS.rawRows.filter(r=>r.nc===nc);
   document.getElementById('modalNombre').textContent=capName(st.nombre);
-  const apro=rows.filter(r=>r.cal>=6),rep=rows.filter(r=>r.cal>0&&r.cal<6),np=rows.filter(r=>r.cal===0);
+  const apro=rows.filter(r=>r.cal>=6),rep=rows.filter(r=>r.cal>0&&r.cal<6),np=rows.filter(r=>r.cal===0&&r.tipo&&r.tipo.toUpperCase().includes('NP')),pend=rows.filter(r=>r.cal===0&&(!r.tipo||!r.tipo.toUpperCase().includes('NP')));
   const pc=st.prom>=8?'#2E7D32':st.prom>=6?'#6B1A2B':st.prom>0?'#C62828':'#888';
   document.getElementById('modalBody').innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem">
@@ -2165,6 +2175,7 @@ function openPerfil(nc){
       <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid var(--verde);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Aprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--verde)">${apro.length}</div></div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid var(--red);border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Reprobadas</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">${rep.length}</div></div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #9E9E9E;border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">NP</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:#9E9E9E">${np.length}</div></div>
+      ${pend.length>0?`<div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #BDBDBD;border-radius:10px;padding:.9rem;text-align:center"><div style="font-size:.65rem;color:var(--text2);text-transform:uppercase;margin-bottom:.3rem">Sin Calif.</div><div style="font-size:1.8rem;font-weight:800;font-family:'DM Mono',monospace;color:#BDBDBD">${pend.length}</div></div>`:''}
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem">
       ${[['🏫',st.carrera],['📅','Semestre '+st.sem],['👥','Grupo '+(st.grupo||'—')],['🌅',st.turno],['🪪',st.nc]].map(([i,t])=>`<span style="background:var(--surface2);border:1px solid var(--border);padding:.25rem .7rem;border-radius:20px;font-size:.73rem;color:var(--text2)">${i} ${t}</span>`).join('')}
@@ -2186,7 +2197,7 @@ function openPerfil(nc){
           <td style="padding:.5rem;text-align:center;color:var(--text2)">${r.p1||'—'}</td>
           <td style="padding:.5rem;text-align:center;color:var(--text2)">${r.p2||'—'}</td>
           <td style="padding:.5rem;text-align:center;color:var(--text2)">${r.p3||'—'}</td>
-          <td style="padding:.5rem;text-align:center">${calBadge(r.cal)}</td>
+          <td style="padding:.5rem;text-align:center">${calBadge(r.cal,r.tipo)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`;
@@ -2392,8 +2403,8 @@ function buildPrediccion(){
     if(row.p1>0) byNc[row.nc].grades.push({p:1,v:row.p1});
     if(row.p2>0) byNc[row.nc].grades.push({p:2,v:row.p2});
     if(row.p3>0) byNc[row.nc].grades.push({p:3,v:row.p3});
-    // NPs ya formalizados (cal=0)
-    if(row.cal===0) byNc[row.nc].nps++;
+    // NPs ya formalizados — solo si TIPO ACRED. dice "NP" (no por cal=0 sin tipo)
+    if(row.cal===0&&row.tipo&&row.tipo.toUpperCase().includes('NP')) byNc[row.nc].nps++;
   }
 
   // Paso 3: calcular puntaje de riesgo por alumno
