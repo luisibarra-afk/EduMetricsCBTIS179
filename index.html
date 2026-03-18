@@ -2350,11 +2350,14 @@ function filterRiesgo(){
 // PREDICCIÓN DE DESERCIÓN
 // ─────────────────────────────────────────────
 function buildPrediccion(){
-  // Paso 1: tope de asistencia por asignatura+grupo por parcial
-  // El tope es el máximo de sesiones posibles en ese grupo → max(a1) de todos los alumnos del grupo
+  // Paso 1: tope de asistencia por clase real
+  // Clave: asignatura+grupo+turno+carrera+semestre para no mezclar:
+  //   - propedéutico de distintos turnos (todos son sem 1, el grupo puede repetirse)
+  //   - misma asignatura enseñada en distintas carreras o semestres
+  const topeKey=r=>[r.asignatura,r.grupo,r.turno,r.carrera,r.semestre].join('||');
   const topes={};
   for(const row of DS.rawRows){
-    const k=row.asignatura+'||'+row.grupo;
+    const k=topeKey(row);
     if(!topes[k]) topes[k]={a1:0,a2:0,a3:0};
     topes[k].a1=Math.max(topes[k].a1,row.a1);
     topes[k].a2=Math.max(topes[k].a2,row.a2);
@@ -2366,7 +2369,7 @@ function buildPrediccion(){
   for(const row of DS.rawRows){
     if(!row.nc) continue;
     if(!byNc[row.nc]) byNc[row.nc]={asistPcts:[],grades:[],nps:0,atRiskNp:0};
-    const t=topes[row.asignatura+'||'+row.grupo]||{a1:0,a2:0,a3:0};
+    const t=topes[topeKey(row)]||{a1:0,a2:0,a3:0};
     // Parcial 1
     if(t.a1>0){
       const p=Math.round(row.a1/t.a1*100);
