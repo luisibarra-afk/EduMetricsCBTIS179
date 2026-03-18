@@ -374,6 +374,7 @@ tr:last-child td { border-bottom:none; }
       <button class="nav-btn" onclick="showPage('carreras')"        data-p="carreras">🏫 Carreras</button>
       <button class="nav-btn" onclick="showPage('calor')"           data-p="calor">🔥 Mapa de Calor</button>
       <button class="nav-btn" onclick="showPage('riesgo')"          data-p="riesgo">⚠️ En Riesgo</button>
+      <button class="nav-btn" onclick="showPage('prediccion')"      data-p="prediccion">🎯 Predicción</button>
       <button class="nav-btn" onclick="showPage('comparar')"        data-p="comparar">↔️ Comparar</button>
     </div>
   </nav>
@@ -568,6 +569,51 @@ tr:last-child td { border-bottom:none; }
         <span class="count-tag" id="riesgoCount">—</span>
       </div>
       <div class="risk-grid" id="riskGrid"></div>
+    </div>
+
+    <!-- PREDICCIÓN DE DESERCIÓN -->
+    <div id="page-prediccion" class="page">
+      <div class="sec-head">
+        <div class="sec-head-left"><div class="sec-title">🎯 Predicción de Deserción</div><div class="sec-sub">Modelo de riesgo: reprobadas + asistencia + promedio + tendencia + NPs</div></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="print-btn" onclick="printPage('prediccion')">🖨 Imprimir</button>
+          <button class="print-btn" onclick="exportPrediccionExcel()">📥 Exportar Excel</button>
+        </div>
+      </div>
+      <!-- Metodología -->
+      <div class="tbl-card" style="margin-bottom:1.2rem">
+        <div class="card-title" style="margin-bottom:.75rem">⚙️ Factores del modelo predictivo</div>
+        <div style="display:flex;gap:.6rem 1.4rem;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:.45rem;font-size:.76rem;color:var(--text2)"><span style="background:#6B1A2B;color:#fff;border-radius:10px;padding:.12rem .55rem;font-weight:700;font-size:.7rem">35 pts</span>Materias reprobadas</div>
+          <div style="display:flex;align-items:center;gap:.45rem;font-size:.76rem;color:var(--text2)"><span style="background:#1565C0;color:#fff;border-radius:10px;padding:.12rem .55rem;font-weight:700;font-size:.7rem">30 pts</span>Asistencia promedio</div>
+          <div style="display:flex;align-items:center;gap:.45rem;font-size:.76rem;color:var(--text2)"><span style="background:#2E7D32;color:#fff;border-radius:10px;padding:.12rem .55rem;font-weight:700;font-size:.7rem">20 pts</span>Promedio general</div>
+          <div style="display:flex;align-items:center;gap:.45rem;font-size:.76rem;color:var(--text2)"><span style="background:#E65100;color:#fff;border-radius:10px;padding:.12rem .55rem;font-weight:700;font-size:.7rem">10 pts</span>Tendencia de calificaciones</div>
+          <div style="display:flex;align-items:center;gap:.45rem;font-size:.76rem;color:var(--text2)"><span style="background:#6A1B9A;color:#fff;border-radius:10px;padding:.12rem .55rem;font-weight:700;font-size:.7rem">10 pts</span>Materias sin presentar (NP)</div>
+        </div>
+        <div style="margin-top:.9rem;display:flex;gap:.5rem;flex-wrap:wrap;font-size:.72rem">
+          <span style="background:#C6282820;color:#C62828;border:1px solid #C62828;border-radius:12px;padding:.15rem .6rem;font-weight:700">🔴 Crítico 76-100</span>
+          <span style="background:#E6510020;color:#E65100;border:1px solid #E65100;border-radius:12px;padding:.15rem .6rem;font-weight:700">🟠 Alto 51-75</span>
+          <span style="background:#F57F1720;color:#F57F17;border:1px solid #F57F17;border-radius:12px;padding:.15rem .6rem;font-weight:700">🟡 Moderado 26-50</span>
+          <span style="background:#2E7D3220;color:#2E7D32;border:1px solid #2E7D32;border-radius:12px;padding:.15rem .6rem;font-weight:700">🟢 Bajo 0-25</span>
+        </div>
+      </div>
+      <div class="kpi-grid" id="predKpis"></div>
+      <div class="filter-row">
+        <select class="filter-select" id="fPCarrera" onchange="filterPrediccion()"><option value="">Todas las especialidades</option></select>
+        <select class="filter-select" id="fPSemestre" onchange="filterPrediccion()"><option value="">Todos los semestres</option></select>
+        <select class="filter-select" id="fPNivel" onchange="filterPrediccion()">
+          <option value="">Todos los niveles</option>
+          <option value="critico">🔴 Crítico</option>
+          <option value="alto">🟠 Alto</option>
+          <option value="moderado">🟡 Moderado</option>
+          <option value="bajo">🟢 Bajo</option>
+        </select>
+        <span class="count-tag" id="predCount">—</span>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-head"><span class="tbl-head-title">Alumnos por nivel de riesgo de deserción</span></div>
+        <div class="tbl-wrap" id="predWrap"></div>
+      </div>
     </div>
 
     <!-- COMPARAR -->
@@ -1000,7 +1046,7 @@ function initApp(){
   document.getElementById('hPeriodo').textContent=DS.meta.periodo;
   Object.values(charts).forEach(c=>c.destroy()); charts={};
   buildDash(); buildAlumnosFilters(); filterStudents();
-  renderDocentes(); buildCarreras(); buildRiesgo(); buildHeatmapFilters();
+  renderDocentes(); buildCarreras(); buildRiesgo(); buildHeatmapFilters(); buildPrediccion();
   showPage('dash');
 }
 
@@ -1743,7 +1789,7 @@ function initApp(){
   document.getElementById('hPeriodo').textContent=DS.meta.periodo;
   Object.values(charts).forEach(c=>c.destroy()); charts={};
   buildDash(); buildAlumnosFilters(); filterStudents();
-  renderDocentes(); buildCarreras(); buildRiesgo(); buildHeatmapFilters();
+  renderDocentes(); buildCarreras(); buildRiesgo(); buildHeatmapFilters(); buildPrediccion();
   showPage('dash');
 }
 
@@ -1890,6 +1936,24 @@ function printPage(tipo){
     ${filters.length?`<p style="font-size:10px;color:#C62828;margin-bottom:12px;background:#FFEBEE;padding:6px 10px;border-radius:6px;border-left:3px solid #C62828">Filtros activos: ${filters.join(' · ')}</p>`:''}
     <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem</th><th style="${TH}">Grupo</th><th style="${TH}">Turno</th><th style="${TH}">Rep.</th><th style="${TH}">Promedio</th></tr></thead><tbody>
     ${list.map((s,i)=>{const c=s.rep===1?'#F57F17':s.rep===2?'#E65100':s.rep===3?'#C62828':'#6B1A2B';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.grupo||'—'}</td><td style="${TD(i)};font-size:9px">${s.turno}</td><td style="${TD(i)};text-align:center;color:${c};font-weight:800">${s.rep}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td></tr>`;}).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='prediccion'){
+    const fc=document.getElementById('fPCarrera').value;
+    const fs=document.getElementById('fPSemestre').value;
+    const fn=document.getElementById('fPNivel').value;
+    let list=window._predList||[];
+    if(fc) list=list.filter(s=>s.carrera===fc);
+    if(fs) list=list.filter(s=>s.sem===fs);
+    if(fn) list=list.filter(s=>s.nivel===fn);
+    const nivelLabel={critico:'Crítico',alto:'Alto',moderado:'Moderado',bajo:'Bajo'};
+    const nivelColor={critico:'#C62828',alto:'#E65100',moderado:'#F57F17',bajo:'#2E7D32'};
+    const tendLabel={mejorando:'↗ Mejora',estable:'→ Estable',bajando:'↘ Baja'};
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">Predicción de Deserción Escolar</h2>
+    <p style="font-size:10px;color:#888;margin-bottom:14px">Modelo: reprobadas (35pts) + asistencia (30pts) + promedio (20pts) + tendencia (10pts) + NPs (10pts) · ${fecha}</p>
+    <table style="${T}"><thead><tr><th style="${TH}">Alumno</th><th style="${TH}">Carrera</th><th style="${TH}">Sem.</th><th style="${TH}">Puntaje</th><th style="${TH}">Nivel</th><th style="${TH}">Rep.</th><th style="${TH}">Prom.</th><th style="${TH}">Asistencia</th><th style="${TH}">Tendencia</th><th style="${TH}">NPs</th></tr></thead><tbody>
+    ${list.map((s,i)=>{const nc=nivelColor[s.nivel]||'#555';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem||'—'}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${nc}">${s.score}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${nc}">${nivelLabel[s.nivel]}</td><td style="${TD(i)};text-align:center;color:${s.rep>0?'#C62828':'#2E7D32'};font-weight:700">${s.rep}</td><td style="${TD(i)};text-align:center">${s.prom}</td><td style="${TD(i)};text-align:center">${s.asist!==null?s.asist+'%':'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${tendLabel[s.tendencia]||'—'}</td><td style="${TD(i)};text-align:center">${s.nps}</td></tr>`;}).join('')}
     </tbody></table>`;
 
   } else if(tipo==='comparar'){
@@ -2283,6 +2347,130 @@ function filterRiesgo(){
 }
 
 // ─────────────────────────────────────────────
+// PREDICCIÓN DE DESERCIÓN
+// ─────────────────────────────────────────────
+function buildPrediccion(){
+  // Agregar por alumno desde rawRows: asistencias, tendencia p1→p3, NPs
+  const byNc = {};
+  for(const row of DS.rawRows){
+    if(!row.nc) continue;
+    if(!byNc[row.nc]) byNc[row.nc]={a_vals:[],p1_vals:[],p3_vals:[],nps:0};
+    if(row.a1>0) byNc[row.nc].a_vals.push(row.a1);
+    if(row.a2>0) byNc[row.nc].a_vals.push(row.a2);
+    if(row.a3>0) byNc[row.nc].a_vals.push(row.a3);
+    if(row.p1>0) byNc[row.nc].p1_vals.push(row.p1);
+    if(row.p3>0) byNc[row.nc].p3_vals.push(row.p3);
+    if(row.cal===0) byNc[row.nc].nps++;
+  }
+
+  window._predList = DS.students.map(st=>{
+    const ex = byNc[st.nc]||{a_vals:[],p1_vals:[],p3_vals:[],nps:0};
+    let score = 0;
+
+    // 1. Reprobadas (35 pts)
+    const repPts=[0,12,22,32,35];
+    score += st.rep>=4 ? 35 : (repPts[st.rep]||0);
+
+    // 2. Asistencia promedio (30 pts)
+    const asist = ex.a_vals.length ? Math.round(ex.a_vals.reduce((a,b)=>a+b,0)/ex.a_vals.length) : null;
+    if(asist!==null){
+      if(asist>=90) score+=0;
+      else if(asist>=80) score+=8;
+      else if(asist>=70) score+=18;
+      else if(asist>=60) score+=25;
+      else score+=30;
+    } else score+=10; // sin datos → riesgo parcial
+
+    // 3. Promedio general (20 pts)
+    if(st.prom>=8.5) score+=0;
+    else if(st.prom>=7) score+=5;
+    else if(st.prom>=6) score+=12;
+    else if(st.prom>0) score+=20;
+
+    // 4. Tendencia calificaciones p1→p3 (10 pts)
+    const avgP1=ex.p1_vals.length?ex.p1_vals.reduce((a,b)=>a+b,0)/ex.p1_vals.length:null;
+    const avgP3=ex.p3_vals.length?ex.p3_vals.reduce((a,b)=>a+b,0)/ex.p3_vals.length:null;
+    let tendencia='estable';
+    if(avgP1!==null&&avgP3!==null){
+      const diff=avgP3-avgP1;
+      if(diff>0.5){tendencia='mejorando';score-=5;}
+      else if(diff<-0.5){tendencia='bajando';score+=10;}
+    }
+
+    // 5. NPs (10 pts)
+    score += ex.nps===0?0:ex.nps===1?5:10;
+
+    score = Math.max(0, Math.min(100, score));
+    let nivel,color;
+    if(score>=76){nivel='critico';color='#C62828';}
+    else if(score>=51){nivel='alto';color='#E65100';}
+    else if(score>=26){nivel='moderado';color='#F57F17';}
+    else{nivel='bajo';color='#2E7D32';}
+
+    return {...st, asist, tendencia, nps:ex.nps, score, nivel, color};
+  }).sort((a,b)=>b.score-a.score);
+
+  // Filtros
+  const carrs=[...new Set(DS.students.map(s=>s.carrera))].sort();
+  const sems=[...new Set(DS.students.map(s=>s.sem).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const fpc=document.getElementById('fPCarrera');
+  fpc.innerHTML='<option value="">Todas las especialidades</option>';
+  carrs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fpc.appendChild(o);});
+  const fps=document.getElementById('fPSemestre');
+  fps.innerHTML='<option value="">Todos los semestres</option>';
+  sems.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent='Semestre '+s;fps.appendChild(o);});
+
+  filterPrediccion();
+}
+
+function filterPrediccion(){
+  const fc=document.getElementById('fPCarrera').value;
+  const fs=document.getElementById('fPSemestre').value;
+  const fn=document.getElementById('fPNivel').value;
+  let list=window._predList||[];
+  if(fc) list=list.filter(s=>s.carrera===fc);
+  if(fs) list=list.filter(s=>s.sem===fs);
+  if(fn) list=list.filter(s=>s.nivel===fn);
+
+  document.getElementById('predCount').textContent=`${list.length} alumnos`;
+
+  const full=window._predList||[];
+  const cnt=n=>full.filter(s=>s.nivel===n).length;
+  const cr=cnt('critico'),al=cnt('alto'),mo=cnt('moderado'),ba=cnt('bajo'),tot=full.length;
+  document.getElementById('predKpis').innerHTML=`
+    <div class="kpi kr"><div class="kpi-label">🔴 Riesgo Crítico</div><div class="kpi-value">${cr}</div><div class="kpi-sub">${pct(cr,tot)}% · Puntaje ≥76</div></div>
+    <div class="kpi ko"><div class="kpi-label">🟠 Riesgo Alto</div><div class="kpi-value">${al}</div><div class="kpi-sub">${pct(al,tot)}% · Puntaje 51-75</div></div>
+    <div class="kpi ky"><div class="kpi-label">🟡 Riesgo Moderado</div><div class="kpi-value">${mo}</div><div class="kpi-sub">${pct(mo,tot)}% · Puntaje 26-50</div></div>
+    <div class="kpi kg"><div class="kpi-label">🟢 Bajo Riesgo</div><div class="kpi-value">${ba}</div><div class="kpi-sub">${pct(ba,tot)}% · Puntaje 0-25</div></div>
+  `;
+
+  const tendLbl={mejorando:'↗ Mejora',estable:'→ Estable',bajando:'↘ Baja'};
+  const tendCol={mejorando:'var(--verde)',estable:'var(--text3)',bajando:'var(--red)'};
+  document.getElementById('predWrap').innerHTML=`
+    <table>
+      <thead><tr>
+        <th>Alumno</th><th>Carrera</th><th>Sem.</th>
+        <th>Puntaje</th><th>Nivel</th>
+        <th>Reprobadas</th><th>Promedio</th><th>Asistencia</th><th>Tendencia</th><th>NPs</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(s=>`<tr>
+          <td style="font-weight:600">${capName(s.nombre)}</td>
+          <td style="font-size:.72rem;color:var(--text2)">${s.carrera}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${s.sem||'—'}</td>
+          <td style="text-align:center"><span style="background:${s.color}22;border:1.5px solid ${s.color};border-radius:20px;padding:.12rem .6rem;font-family:'DM Mono',monospace;font-weight:800;font-size:.82rem;color:${s.color}">${s.score}</span></td>
+          <td style="text-align:center"><span style="background:${s.color}18;color:${s.color};border:1px solid ${s.color};border-radius:12px;padding:.1rem .5rem;font-size:.72rem;font-weight:700">${s.nivel.charAt(0).toUpperCase()+s.nivel.slice(1)}</span></td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${s.rep>0?'var(--red)':'var(--verde)'}">${s.rep}</td>
+          <td style="text-align:center">${calBadge(s.prom)}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${s.asist!==null?s.asist+'%':'—'}</td>
+          <td style="text-align:center;font-size:.75rem;color:${tendCol[s.tendencia]||'var(--text3)'}">${tendLbl[s.tendencia]||'—'}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:${s.nps>0?'var(--orange)':'var(--text3)'}">${s.nps}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ─────────────────────────────────────────────
 // EXPORTAR EXCEL
 // ─────────────────────────────────────────────
 function exportRiesgoExcel(){
@@ -2314,6 +2502,20 @@ function exportDocentesExcel(){
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`docentes_${DS.meta.plantel.replace(/\s+/g,'_')}_${periodo.replace(/\s+/g,'_')}.csv`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+function exportPrediccionExcel(){
+  const list=window._predList||[];
+  const nivelLabel={critico:'Crítico',alto:'Alto',moderado:'Moderado',bajo:'Bajo'};
+  const tendLabel={mejorando:'Mejorando',estable:'Estable',bajando:'Bajando'};
+  const rows=[['N° Control','Nombre','Carrera','Semestre','Grupo','Puntaje Riesgo','Nivel','Reprobadas','Promedio','Asistencia %','Tendencia','NPs']];
+  list.forEach(s=>rows.push([s.nc,capName(s.nombre),s.carrera,s.sem||'',s.grupo||'',s.score,nivelLabel[s.nivel],s.rep,s.prom,s.asist!==null?s.asist:'Sin datos',tendLabel[s.tendencia]||'',s.nps]));
+  const bom='\uFEFF';
+  const csv=bom+rows.map(r=>r.map(v=>typeof v==='string'&&(v.includes(',')||v.includes('"'))?`"${v.replace(/"/g,'""')}"`:v).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`prediccion_desercion_${DS.meta.plantel.replace(/\s+/g,'_')}_${(DS.meta.periodo||'').replace(/\s+/g,'_')}.csv`;
   a.click();URL.revokeObjectURL(a.href);
 }
 
