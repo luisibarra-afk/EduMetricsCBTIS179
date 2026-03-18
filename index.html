@@ -859,6 +859,7 @@ function buildDataset(rows){
     // Excluir MÓDULO I, II, III... (registros sin docente real / módulos padre)
     const asigRaw = g(row,c.asignatura).trim().toUpperCase();
     if(asigRaw.includes('DULO ') || asigRaw.startsWith('MODULO') || asigRaw.startsWith('MÓDULO')) continue;
+    if(asigRaw.includes('SOCIOEMOCIONAL')) continue; // materia eliminada del plan de estudios
 
     if(!plantelName || plantelName==='Plantel DGETI'){
       const pv = g(row,c.plantel);
