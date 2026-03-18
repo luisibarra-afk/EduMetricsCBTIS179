@@ -27,7 +27,10 @@
   --purple:   #6B1130;
   --text:     #1a1f2e;
   --text2:    #5a6275;
+  --text3:    #8892a4;
   --white:    #ffffff;
+  --verde:    #2E7D32;
+  --vino:     #6B1130;
   --shadow:   0 2px 12px rgba(107,17,48,.08);
   --shadow-lg:0 8px 32px rgba(107,17,48,.12);
 }
@@ -145,6 +148,13 @@ body { font-family:'DM Sans',sans-serif; background:#f4f5f7; color:#1a1f2e; min-
 .kpi-label { font-size:.68rem; color:var(--text2); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.5rem; font-weight:600; }
 .kpi-value { font-size:2rem; font-weight:800; font-family:'DM Mono',monospace; line-height:1.1; }
 .kpi-sub { font-size:.72rem; color:var(--text2); margin-top:.35rem; }
+/* KPI color variants */
+.kpi.kv { border-top:3px solid var(--vino); }   .kpi.kv .kpi-value { color:var(--vino); }
+.kpi.kr { border-top:3px solid var(--red); }    .kpi.kr .kpi-value { color:var(--red); }
+.kpi.kg { border-top:3px solid var(--verde); }  .kpi.kg .kpi-value { color:var(--verde); }
+.kpi.ky { border-top:3px solid var(--yellow); } .kpi.ky .kpi-value { color:var(--yellow); }
+.kpi.ko { border-top:3px solid var(--orange); } .kpi.ko .kpi-value { color:var(--orange); }
+.kpi.kp { border-top:3px solid #7b1fa2; }       .kpi.kp .kpi-value { color:#7b1fa2; }
 
 /* CHARTS */
 .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.75rem; }
