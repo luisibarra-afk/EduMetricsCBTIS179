@@ -1554,6 +1554,7 @@ function filterPrediccion(){
   if(fc) list=list.filter(s=>s.carrera===fc);
   if(fs) list=list.filter(s=>s.sem===fs);
   if(fn) list=list.filter(s=>s.nivel===fn);
+  window._predFiltered=list;
   document.getElementById('predCount').textContent=`${list.length} alumnos`;
   const full=window._predList||[];
   const cnt=n=>full.filter(s=>s.nivel===n).length;
@@ -1987,6 +1988,25 @@ function printPage(tipo){
     ${filters.length?`<p style="font-size:10px;color:#C62828;margin-bottom:12px;background:#FFEBEE;padding:6px 10px;border-radius:6px;border-left:3px solid #C62828">Filtros activos: ${filters.join(' · ')}</p>`:''}
     <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem</th><th style="${TH}">Grupo</th><th style="${TH}">Turno</th><th style="${TH}">Rep.</th><th style="${TH}">Promedio</th></tr></thead><tbody>
     ${list.map((s,i)=>{const c=s.rep===1?'#F57F17':s.rep===2?'#E65100':s.rep===3?'#C62828':'#6B1A2B';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.grupo||'—'}</td><td style="${TD(i)};font-size:9px">${s.turno}</td><td style="${TD(i)};text-align:center;color:${c};font-weight:800">${s.rep}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td></tr>`;}).join('')}
+    </tbody></table>`;
+
+  } else if(tipo==='prediccion'){
+    const list=window._predFiltered||window._predList||[];
+    const fc=document.getElementById('fPCarrera').value;
+    const fs=document.getElementById('fPSemestre').value;
+    const fn=document.getElementById('fPNivel').value;
+    const filters=[];
+    if(fc) filters.push('Especialidad: '+fc);
+    if(fs) filters.push('Semestre: '+fs);
+    if(fn) filters.push('Nivel: '+{critico:'Crítico',alto:'Alto',moderado:'Moderado',bajo:'Bajo'}[fn]);
+    const nivelColor={critico:'#C62828',alto:'#E65100',moderado:'#F57F17',bajo:'#2E7D32'};
+    const tendLbl={mejorando:'↗ Mejora',estable:'→ Estable',bajando:'↘ Baja','1 parcial':'1 parcial','sin datos':'—'};
+    body=`${HDR}
+    <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">🎯 Predicción de Deserción</h2>
+    <p style="font-size:10px;color:#888;margin-bottom:${filters.length?'4px':'14px'}">${list.length} alumnos · ${fecha}</p>
+    ${filters.length?`<p style="font-size:10px;color:#6B1A2B;margin-bottom:12px;background:#fdf5f6;padding:6px 10px;border-radius:6px;border-left:3px solid #6B1A2B">Filtros activos: ${filters.join(' · ')}</p>`:''}
+    <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem.</th><th style="${TH}">Puntaje</th><th style="${TH}">Nivel</th><th style="${TH}">Reprobadas</th><th style="${TH}">Promedio</th><th style="${TH}">Asist. %</th><th style="${TH}">Tendencia</th><th style="${TH}">NP / Riesgo NP</th></tr></thead><tbody>
+    ${list.map((s,i)=>{const c=nivelColor[s.nivel]||'#888';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem||'—'}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${c}">${s.score}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${c}">${s.nivel.charAt(0).toUpperCase()+s.nivel.slice(1)}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${s.rep>0?'#C62828':'#2E7D32'}">${s.rep}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td><td style="${TD(i)};text-align:center">${s.asistProm!==null?s.asistProm+'%':'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${tendLbl[s.tendencia]||'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${s.nps>0?s.nps+' NP':''}${s.atRiskNp>0?' '+s.atRiskNp+' riesgo':''}${s.nps===0&&s.atRiskNp===0?'—':''}</td></tr>`;}).join('')}
     </tbody></table>`;
 
   } else if(tipo==='comparar'){
