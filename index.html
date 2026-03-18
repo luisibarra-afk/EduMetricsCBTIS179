@@ -890,14 +890,28 @@ function buildDataset(rows){
 
   if(!periodoName) periodoName = 'PERÍODO ESCOLAR';
 
+  // Detectar si el dataset es de periodo parcial (solo P1, o P1+P2, sin todos los parciales)
+  // Si menos del 5% de registros tiene P2>0 → solo hay Parcial 1
+  // Si menos del 5% de registros tiene P3>0 → solo hay hasta Parcial 2
+  const totalRows = data.length || 1;
+  const conP2 = data.filter(d=>d.p2>0).length;
+  const conP3 = data.filter(d=>d.p3>0).length;
+  const partialMode = (conP2/totalRows < 0.05 && conP3/totalRows < 0.05) ? 1
+                    : (conP3/totalRows < 0.05) ? 2
+                    : 3; // 3 = completo (todos los parciales)
+
   // Max cal por clase — si >0, la clase ya fue calificada (cal=0 ahí = NP real)
   // NP detection: tipo dice "NP" (explícito) O cal=0 en clase ya calificada (implícito)
+  // En modo parcial NO hay NPs confirmados: se determinan al cierre del semestre (80% asistencia)
   const maxCalByClass = {};
   for(const d of data){
-    if(d.tipo&&d.tipo.toUpperCase().includes('NP')) continue; // no contar NP explícitos como calificación de clase
+    if(d.tipo&&d.tipo.toUpperCase().includes('NP')) continue;
     const k=d.asignatura+'||'+d.grupo; maxCalByClass[k]=Math.max(maxCalByClass[k]||0, d.cal);
   }
-  function esNP(d){ return (d.tipo&&d.tipo.toUpperCase().includes('NP'))||(d.cal===0&&(maxCalByClass[d.asignatura+'||'+d.grupo]||0)>0); }
+  function esNP(d){
+    if(partialMode < 3) return false; // NPs se formalizan al cierre del semestre
+    return (d.tipo&&d.tipo.toUpperCase().includes('NP'))||(d.cal===0&&(maxCalByClass[d.asignatura+'||'+d.grupo]||0)>0);
+  }
   for(const d of data) d.isNP = esNP(d);
 
   // ── AGGREGATIONS ──
@@ -995,7 +1009,7 @@ function buildDataset(rows){
   const aproCount=data.filter(d=>d.cal>=6&&!d.isNP).length;
   const repCount=data.filter(d=>d.cal>0&&d.cal<6&&!d.isNP).length;
   return {
-    meta:{plantel:plantelName,clave:clavePlantel,periodo:periodoName,total,alumnos:students.length,docentes:docentes.length,asignaturas:Object.keys(byA).length},
+    meta:{plantel:plantelName,clave:clavePlantel,periodo:periodoName,total,alumnos:students.length,docentes:docentes.length,asignaturas:Object.keys(byA).length,partialMode},
     kpis:{prom:con.length?Math.round(con.reduce((s,d)=>s+d.cal,0)/con.length*100)/100:0,
       apro:aproCount,apro_pct:Math.round(aproCount/total*100*10)/10,
       rep:repCount,rep_pct:Math.round(repCount/total*100*10)/10,
@@ -1105,15 +1119,26 @@ function mkChart(id,type,data,opts){
 // ─────────────────────────────────────────────
 function buildDash(){
   const {meta,kpis,hist,carreras,asigRep}=DS;
-  document.getElementById('dashSub').textContent=`${meta.periodo} · ${meta.alumnos.toLocaleString()} alumnos · ${meta.docentes} docentes · ${meta.asignaturas} asignaturas · ${meta.total.toLocaleString()} registros`;
+  const pm=meta.partialMode||3;
+  const pmLabel=pm===1?'Parcial 1':pm===2?'Parciales 1–2':'Completo';
+  document.getElementById('dashSub').textContent=`${meta.periodo} · ${pmLabel} · ${meta.alumnos.toLocaleString()} alumnos · ${meta.docentes} docentes · ${meta.asignaturas} asignaturas · ${meta.total.toLocaleString()} registros`;
+  const npKpi = pm<3
+    ? `<div class="kpi"><div class="kpi-accent-bar" style="background:#9e9e9e"></div><div class="kpi-glow" style="background:#9e9e9e"></div><div class="kpi-label">NP (No Presentaron)</div><div class="kpi-value" style="color:#9e9e9e;font-size:1.1rem">—</div><div class="kpi-sub" style="font-size:.67rem">Se determina al cierre del semestre<br>(80% asist. los 3 parciales)</div></div>`
+    : `<div class="kpi"><div class="kpi-accent-bar" style="background:var(--yellow)"></div><div class="kpi-glow" style="background:var(--yellow)"></div><div class="kpi-label">No Presentaron</div><div class="kpi-value" style="color:var(--yellow)" data-target="${kpis.np_pct}">0</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros · <strong>%</strong></div></div>`;
   document.getElementById('kpiGrid').innerHTML=`
-    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--accent)"></div><div class="kpi-glow" style="background:var(--accent)"></div><div class="kpi-label">Promedio General</div><div class="kpi-value" style="color:var(--accent)" data-target="${kpis.prom}">0</div><div class="kpi-sub">Escala 0–10</div></div>
+    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--accent)"></div><div class="kpi-glow" style="background:var(--accent)"></div><div class="kpi-label">Promedio General</div><div class="kpi-value" style="color:var(--accent)" data-target="${kpis.prom}">0</div><div class="kpi-sub">Escala 0–10 · ${pmLabel}</div></div>
     <div class="kpi"><div class="kpi-accent-bar" style="background:#1565c0"></div><div class="kpi-glow" style="background:#1565c0"></div><div class="kpi-label">Alumnos</div><div class="kpi-value" style="color:#1565c0" data-target="${meta.alumnos}">0</div><div class="kpi-sub">${meta.total.toLocaleString()} registros</div></div>
     <div class="kpi"><div class="kpi-accent-bar" style="background:var(--green)"></div><div class="kpi-glow" style="background:var(--green)"></div><div class="kpi-label">Aprobados</div><div class="kpi-value" style="color:var(--green)" data-target="${kpis.apro_pct}">0</div><div class="kpi-sub">${kpis.apro.toLocaleString()} calificaciones · <strong>%</strong></div></div>
     <div class="kpi"><div class="kpi-accent-bar" style="background:var(--red)"></div><div class="kpi-glow" style="background:var(--red)"></div><div class="kpi-label">Reprobados</div><div class="kpi-value" style="color:var(--red)" data-target="${kpis.rep_pct}">0</div><div class="kpi-sub">${kpis.rep.toLocaleString()} calificaciones · <strong>%</strong></div></div>
-    <div class="kpi"><div class="kpi-accent-bar" style="background:var(--yellow)"></div><div class="kpi-glow" style="background:var(--yellow)"></div><div class="kpi-label">No Presentaron</div><div class="kpi-value" style="color:var(--yellow)" data-target="${kpis.np_pct}">0</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros · <strong>%</strong></div></div>
+    ${npKpi}
     <div class="kpi"><div class="kpi-accent-bar" style="background:#7b1fa2"></div><div class="kpi-glow" style="background:#7b1fa2"></div><div class="kpi-label">Docentes</div><div class="kpi-value" style="color:#7b1fa2" data-target="${meta.docentes}">0</div><div class="kpi-sub">${meta.asignaturas} asignaturas</div></div>
   `;
+  // Banner de datos parciales
+  let pmBanner=document.getElementById('partialBanner');
+  if(!pmBanner){pmBanner=document.createElement('div');pmBanner.id='partialBanner';document.getElementById('page-dash').insertBefore(pmBanner,document.getElementById('kpiGrid'));}
+  if(pm<3){
+    pmBanner.innerHTML=`<div style="background:#FFF8E1;border:1.5px solid #F9A825;border-radius:10px;padding:.65rem 1rem;margin-bottom:.8rem;font-size:.8rem;color:#5D4037;display:flex;align-items:center;gap:.6rem"><span style="font-size:1.1rem">⚠️</span><div><strong>Datos de ${pmLabel} — Semestre en curso</strong><br>Los NP se formalizan al cierre del semestre cuando el alumno no cumple el 80% de asistencia en los 3 parciales. La predicción de riesgo usa las calificaciones y asistencia disponibles.</div></div>`;
+  } else { pmBanner.innerHTML=''; }
   animateCounters();
   mkChart('cHist','bar',{labels:Object.keys(hist),datasets:[{data:Object.values(hist),backgroundColor:['#9e9e9e','#b71c1c','#2e7d32','#1565c0','#0277bd','#006064','#1b5e20'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}});
   mkChart('cCarrApro','bar',{labels:carreras.map(c=>c.n.length>14?c.n.slice(0,13)+'…':c.n),datasets:[{label:'Aprobados %',data:carreras.map(c=>pct(c.apro,c.apro+c.rep+c.np)),backgroundColor:'rgba(46,125,50,.8)',borderRadius:4},{label:'Reprobados %',data:carreras.map(c=>pct(c.rep,c.apro+c.rep+c.np)),backgroundColor:'rgba(198,40,40,.7)',borderRadius:4}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:30}},y:{grid:GRID,ticks:TICK,max:100}}});
@@ -1494,6 +1519,7 @@ function filterRiesgo(){
 // PREDICCIÓN DE DESERCIÓN
 // ─────────────────────────────────────────────
 function buildPrediccion(){
+  const pm=DS.meta.partialMode||3;
   const topeKey=r=>[r.asignatura,r.grupo,r.turno,r.carrera,r.semestre].join('||');
   const topes={};
   for(const row of DS.rawRows){
@@ -1514,15 +1540,35 @@ function buildPrediccion(){
     if(row.p1>0) byNc[row.nc].grades.push({p:1,v:row.p1});
     if(row.p2>0) byNc[row.nc].grades.push({p:2,v:row.p2});
     if(row.p3>0) byNc[row.nc].grades.push({p:3,v:row.p3});
-    if(row.isNP) byNc[row.nc].nps++;
+    if(row.isNP) byNc[row.nc].nps++; // solo aplica en modo completo (pm===3)
   }
+
+  // Etiqueta de aviso en el encabezado de la sección predicción
+  const predSubEl=document.querySelector('#page-prediccion .sec-sub');
+  if(predSubEl){
+    if(pm<3){
+      const pmLabel=pm===1?'Parcial 1':'Parciales 1–2';
+      predSubEl.textContent=`Predicción temprana basada en ${pmLabel} — reprobadas, asistencia y promedio (NP se determina al cierre)`;
+    } else {
+      predSubEl.textContent='Modelo de riesgo: reprobadas + asistencia + promedio + tendencia + NPs';
+    }
+  }
+
   window._predList=DS.students.map(st=>{
     const ex=byNc[st.nc]||{asistPcts:[],grades:[],nps:0,atRiskNp:0};
     let score=0;
     const repPts=[0,12,22,32,35];
     score+=st.rep>=4?35:(repPts[st.rep]||0);
     const asistProm=ex.asistPcts.length?Math.round(ex.asistPcts.reduce((a,b)=>a+b,0)/ex.asistPcts.length):null;
-    if(asistProm!==null){if(asistProm>=90)score+=0;else if(asistProm>=80)score+=8;else if(asistProm>=70)score+=18;else if(asistProm>=60)score+=25;else score+=30;}else score+=10;
+    // En modo parcial la asistencia disponible (A1) pesa más porque es la señal principal
+    if(asistProm!==null){
+      if(pm<3){
+        // Sin A2/A3 la penalización por baja asistencia se amplifica ligeramente
+        if(asistProm>=90)score+=0;else if(asistProm>=80)score+=10;else if(asistProm>=70)score+=22;else if(asistProm>=60)score+=28;else score+=33;
+      } else {
+        if(asistProm>=90)score+=0;else if(asistProm>=80)score+=8;else if(asistProm>=70)score+=18;else if(asistProm>=60)score+=25;else score+=30;
+      }
+    } else score+=10;
     if(st.prom>=8.5)score+=0;else if(st.prom>=7)score+=5;else if(st.prom>=6)score+=12;else if(st.prom>0)score+=20;
     const byP={};
     for(const g of ex.grades){if(!byP[g.p])byP[g.p]=[];byP[g.p].push(g.v);}
@@ -1530,8 +1576,13 @@ function buildPrediccion(){
     let tendencia='sin datos';
     if(parcs.length>=2){const diff=parcs[parcs.length-1].avg-parcs[0].avg;if(diff>0.5){tendencia='mejorando';score-=5;}else if(diff<-0.5){tendencia='bajando';score+=10;}else tendencia='estable';}
     else if(parcs.length===1) tendencia='1 parcial';
-    const npTotal=ex.nps+ex.atRiskNp;
-    score+=npTotal===0?0:npTotal===1?5:10;
+    // NPs solo se suman al score en modo completo; en parcial solo "en riesgo NP" por asistencia
+    if(pm>=3){
+      const npTotal=ex.nps+ex.atRiskNp;
+      score+=npTotal===0?0:npTotal===1?5:10;
+    } else {
+      // En parcial: atRiskNp de A1 ya está capturado en asistProm; no doble penalizar
+    }
     score=Math.max(0,Math.min(100,score));
     let nivel,color;
     if(score>=76){nivel='critico';color='#C62828';}else if(score>=51){nivel='alto';color='#E65100';}else if(score>=26){nivel='moderado';color='#F57F17';}else{nivel='bajo';color='#2E7D32';}
@@ -2002,12 +2053,17 @@ function printPage(tipo){
     if(fn) filters.push('Nivel: '+{critico:'Crítico',alto:'Alto',moderado:'Moderado',bajo:'Bajo'}[fn]);
     const nivelColor={critico:'#C62828',alto:'#E65100',moderado:'#F57F17',bajo:'#2E7D32'};
     const tendLbl={mejorando:'↗ Mejora',estable:'→ Estable',bajando:'↘ Baja','1 parcial':'1 parcial','sin datos':'—'};
+    const pmPred=DS.meta.partialMode||3;
+    const pmPredLabel=pmPred===1?'Parcial 1':pmPred===2?'Parciales 1–2':'Completo';
+    const pmNote=pmPred<3?`<p style="font-size:9px;color:#7B4F00;background:#FFF8E1;padding:5px 10px;border-radius:5px;border-left:3px solid #F9A825;margin-bottom:10px">⚠ Predicción temprana basada en ${pmPredLabel} — Los NP se formalizan al cierre del semestre</p>`:'';
+    const npHeader=pmPred<3?'Riesgo Asist.':'NP / Riesgo NP';
     body=`${HDR}
     <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">🎯 Predicción de Deserción</h2>
-    <p style="font-size:10px;color:#888;margin-bottom:${filters.length?'4px':'14px'}">${list.length} alumnos · ${fecha}</p>
+    <p style="font-size:10px;color:#888;margin-bottom:${(filters.length||pmPred<3)?'4px':'14px'}">${list.length} alumnos · ${fecha} · ${pmPredLabel}</p>
+    ${pmNote}
     ${filters.length?`<p style="font-size:10px;color:#6B1A2B;margin-bottom:12px;background:#fdf5f6;padding:6px 10px;border-radius:6px;border-left:3px solid #6B1A2B">Filtros activos: ${filters.join(' · ')}</p>`:''}
-    <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem.</th><th style="${TH}">Puntaje</th><th style="${TH}">Nivel</th><th style="${TH}">Reprobadas</th><th style="${TH}">Promedio</th><th style="${TH}">Asist. %</th><th style="${TH}">Tendencia</th><th style="${TH}">NP / Riesgo NP</th></tr></thead><tbody>
-    ${list.map((s,i)=>{const c=nivelColor[s.nivel]||'#888';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem||'—'}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${c}">${s.score}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${c}">${s.nivel.charAt(0).toUpperCase()+s.nivel.slice(1)}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${s.rep>0?'#C62828':'#2E7D32'}">${s.rep}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td><td style="${TD(i)};text-align:center">${s.asistProm!==null?s.asistProm+'%':'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${tendLbl[s.tendencia]||'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${s.nps>0?s.nps+' NP':''}${s.atRiskNp>0?' '+s.atRiskNp+' riesgo':''}${s.nps===0&&s.atRiskNp===0?'—':''}</td></tr>`;}).join('')}
+    <table style="${T}"><thead><tr><th style="${TH}">Nombre</th><th style="${TH}">N° Control</th><th style="${TH}">Carrera</th><th style="${TH}">Sem.</th><th style="${TH}">Puntaje</th><th style="${TH}">Nivel</th><th style="${TH}">Reprobadas</th><th style="${TH}">Promedio</th><th style="${TH}">Asist. %</th><th style="${TH}">Tendencia</th><th style="${TH}">${npHeader}</th></tr></thead><tbody>
+    ${list.map((s,i)=>{const c=nivelColor[s.nivel]||'#888';const npCell=pmPred<3?(s.atRiskNp>0?s.atRiskNp+' mat.':'—'):(s.nps>0?s.nps+' NP':'')+(s.atRiskNp>0?' '+s.atRiskNp+' riesgo':'')+(s.nps===0&&s.atRiskNp===0?'—':'');return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-family:monospace;font-size:9px">${s.nc}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem||'—'}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${c}">${s.score}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${c}">${s.nivel.charAt(0).toUpperCase()+s.nivel.slice(1)}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${s.rep>0?'#C62828':'#2E7D32'}">${s.rep}</td><td style="${TD(i)};text-align:center;font-weight:700">${s.prom}</td><td style="${TD(i)};text-align:center">${s.asistProm!==null?s.asistProm+'%':'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${tendLbl[s.tendencia]||'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${npCell}</td></tr>`;}).join('')}
     </tbody></table>`;
 
   } else if(tipo==='comparar'){
@@ -2074,13 +2130,18 @@ function mkChart(id,type,data,opts){
 // ─────────────────────────────────────────────
 function buildDash(){
   const {meta,kpis,hist,carreras,asigRep}=DS;
-  document.getElementById('dashSub').textContent=`${meta.periodo} · ${meta.alumnos.toLocaleString()} alumnos · ${meta.docentes} docentes · ${meta.asignaturas} asignaturas · ${meta.total.toLocaleString()} registros`;
+  const pm=meta.partialMode||3;
+  const pmLabel=pm===1?'Parcial 1':pm===2?'Parciales 1–2':'Completo';
+  document.getElementById('dashSub').textContent=`${meta.periodo} · ${pmLabel} · ${meta.alumnos.toLocaleString()} alumnos · ${meta.docentes} docentes · ${meta.asignaturas} asignaturas · ${meta.total.toLocaleString()} registros`;
+  const npKpiPrint = pm<3
+    ? `<div class="kpi" style="border-top-color:#9e9e9e"><div class="kpi-label">NP (No Presentaron)</div><div class="kpi-value" style="color:#9e9e9e;font-size:1rem">—</div><div class="kpi-sub" style="font-size:.65rem">Se determina al cierre del semestre</div></div>`
+    : `<div class="kpi ky"><div class="kpi-label">No Presentaron</div><div class="kpi-value">${kpis.np_pct}%</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros</div></div>`;
   document.getElementById('kpiGrid').innerHTML=`
-    <div class="kpi kv"><div class="kpi-label">Promedio General</div><div class="kpi-value">${kpis.prom}</div><div class="kpi-sub">Escala 0–10</div></div>
+    <div class="kpi kv"><div class="kpi-label">Promedio General</div><div class="kpi-value">${kpis.prom}</div><div class="kpi-sub">Escala 0–10 · ${pmLabel}</div></div>
     <div class="kpi" style="border-top-color:#555"><div class="kpi-label">Alumnos</div><div class="kpi-value" style="color:#333">${meta.alumnos.toLocaleString()}</div><div class="kpi-sub">${meta.total.toLocaleString()} registros</div></div>
     <div class="kpi kg"><div class="kpi-label">Aprobados</div><div class="kpi-value">${kpis.apro_pct}%</div><div class="kpi-sub">${kpis.apro.toLocaleString()} calificaciones</div></div>
     <div class="kpi kr"><div class="kpi-label">Reprobados</div><div class="kpi-value">${kpis.rep_pct}%</div><div class="kpi-sub">${kpis.rep.toLocaleString()} calificaciones</div></div>
-    <div class="kpi ky"><div class="kpi-label">No Presentaron</div><div class="kpi-value">${kpis.np_pct}%</div><div class="kpi-sub">${kpis.np.toLocaleString()} registros</div></div>
+    ${npKpiPrint}
     <div class="kpi kp"><div class="kpi-label">Docentes</div><div class="kpi-value">${meta.docentes}</div><div class="kpi-sub">${meta.asignaturas} asignaturas</div></div>
   `;
   mkChart('cHist','bar',{labels:Object.keys(hist),datasets:[{data:Object.values(hist),backgroundColor:['#9E9E9E','#C62828','#2E7D32','#1565C0','#0277BD','#00838F','#1B5E20'],borderRadius:6,borderSkipped:false}]},{plugins:{legend:{display:false}},scales:{x:{grid:GRID,ticks:TICK},y:{grid:GRID,ticks:TICK}}});
