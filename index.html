@@ -1952,8 +1952,8 @@ function printPage(tipo){
     body=`${HDR}
     <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:4px">Predicción de Deserción Escolar</h2>
     <p style="font-size:10px;color:#888;margin-bottom:14px">Modelo: reprobadas (35pts) + asistencia (30pts) + promedio (20pts) + tendencia (10pts) + NPs (10pts) · ${fecha}</p>
-    <table style="${T}"><thead><tr><th style="${TH}">Alumno</th><th style="${TH}">Carrera</th><th style="${TH}">Sem.</th><th style="${TH}">Puntaje</th><th style="${TH}">Nivel</th><th style="${TH}">Rep.</th><th style="${TH}">Prom.</th><th style="${TH}">Asistencia</th><th style="${TH}">Tendencia</th><th style="${TH}">NPs</th></tr></thead><tbody>
-    ${list.map((s,i)=>{const nc=nivelColor[s.nivel]||'#555';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem||'—'}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${nc}">${s.score}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${nc}">${nivelLabel[s.nivel]}</td><td style="${TD(i)};text-align:center;color:${s.rep>0?'#C62828':'#2E7D32'};font-weight:700">${s.rep}</td><td style="${TD(i)};text-align:center">${s.prom}</td><td style="${TD(i)};text-align:center">${s.asist!==null?s.asist+'%':'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${tendLabel[s.tendencia]||'—'}</td><td style="${TD(i)};text-align:center">${s.nps}</td></tr>`;}).join('')}
+    <table style="${T}"><thead><tr><th style="${TH}">Alumno</th><th style="${TH}">Carrera</th><th style="${TH}">Sem.</th><th style="${TH}">Puntaje</th><th style="${TH}">Nivel</th><th style="${TH}">Rep.</th><th style="${TH}">Prom.</th><th style="${TH}">Asist.%</th><th style="${TH}">Tendencia</th><th style="${TH}">NP</th><th style="${TH}">Riesgo NP</th></tr></thead><tbody>
+    ${list.map((s,i)=>{const nc=nivelColor[s.nivel]||'#555';return`<tr><td style="${TD(i)};font-weight:600">${capName(s.nombre)}</td><td style="${TD(i)};font-size:9px">${s.carrera}</td><td style="${TD(i)};text-align:center">${s.sem||'—'}</td><td style="${TD(i)};text-align:center;font-weight:800;color:${nc}">${s.score}</td><td style="${TD(i)};text-align:center;font-weight:700;color:${nc}">${nivelLabel[s.nivel]}</td><td style="${TD(i)};text-align:center;color:${s.rep>0?'#C62828':'#2E7D32'};font-weight:700">${s.rep}</td><td style="${TD(i)};text-align:center">${s.prom}</td><td style="${TD(i)};text-align:center">${s.asistProm!==null?s.asistProm+'%':'—'}</td><td style="${TD(i)};text-align:center;font-size:9px">${tendLabel[s.tendencia]||'—'}</td><td style="${TD(i)};text-align:center;color:${s.nps>0?'#C62828':'#555'}">${s.nps}</td><td style="${TD(i)};text-align:center;color:${s.atRiskNp>0?'#E65100':'#555'}">${s.atRiskNp}</td></tr>`;}).join('')}
     </tbody></table>`;
 
   } else if(tipo==='comparar'){
@@ -2350,36 +2350,70 @@ function filterRiesgo(){
 // PREDICCIÓN DE DESERCIÓN
 // ─────────────────────────────────────────────
 function buildPrediccion(){
-  // Agregar por alumno desde rawRows: asistencias, tendencia p1→p3, NPs
-  const byNc = {};
+  // Paso 1: tope de asistencia por asignatura+grupo por parcial
+  // El tope es el máximo de sesiones posibles en ese grupo → max(a1) de todos los alumnos del grupo
+  const topes={};
+  for(const row of DS.rawRows){
+    const k=row.asignatura+'||'+row.grupo;
+    if(!topes[k]) topes[k]={a1:0,a2:0,a3:0};
+    topes[k].a1=Math.max(topes[k].a1,row.a1);
+    topes[k].a2=Math.max(topes[k].a2,row.a2);
+    topes[k].a3=Math.max(topes[k].a3,row.a3);
+  }
+
+  // Paso 2: agregar por alumno — solo procesar parciales con tope>0 (ya registrados)
+  const byNc={};
   for(const row of DS.rawRows){
     if(!row.nc) continue;
-    if(!byNc[row.nc]) byNc[row.nc]={a_vals:[],p1_vals:[],p3_vals:[],nps:0};
-    if(row.a1>0) byNc[row.nc].a_vals.push(row.a1);
-    if(row.a2>0) byNc[row.nc].a_vals.push(row.a2);
-    if(row.a3>0) byNc[row.nc].a_vals.push(row.a3);
-    if(row.p1>0) byNc[row.nc].p1_vals.push(row.p1);
-    if(row.p3>0) byNc[row.nc].p3_vals.push(row.p3);
+    if(!byNc[row.nc]) byNc[row.nc]={asistPcts:[],grades:[],nps:0,atRiskNp:0};
+    const t=topes[row.asignatura+'||'+row.grupo]||{a1:0,a2:0,a3:0};
+    // Parcial 1
+    if(t.a1>0){
+      const p=Math.round(row.a1/t.a1*100);
+      byNc[row.nc].asistPcts.push(p);
+      if(p<80) byNc[row.nc].atRiskNp++;
+    }
+    // Parcial 2 — solo si el tope existe (el parcial ya se registró)
+    if(t.a2>0){
+      const p=Math.round(row.a2/t.a2*100);
+      byNc[row.nc].asistPcts.push(p);
+      if(p<80) byNc[row.nc].atRiskNp++;
+    }
+    // Parcial 3
+    if(t.a3>0){
+      const p=Math.round(row.a3/t.a3*100);
+      byNc[row.nc].asistPcts.push(p);
+      if(p<80) byNc[row.nc].atRiskNp++;
+    }
+    // Calificaciones por parcial (para tendencia)
+    if(row.p1>0) byNc[row.nc].grades.push({p:1,v:row.p1});
+    if(row.p2>0) byNc[row.nc].grades.push({p:2,v:row.p2});
+    if(row.p3>0) byNc[row.nc].grades.push({p:3,v:row.p3});
+    // NPs ya formalizados (cal=0)
     if(row.cal===0) byNc[row.nc].nps++;
   }
 
-  window._predList = DS.students.map(st=>{
-    const ex = byNc[st.nc]||{a_vals:[],p1_vals:[],p3_vals:[],nps:0};
-    let score = 0;
+  // Paso 3: calcular puntaje de riesgo por alumno
+  window._predList=DS.students.map(st=>{
+    const ex=byNc[st.nc]||{asistPcts:[],grades:[],nps:0,atRiskNp:0};
+    let score=0;
 
     // 1. Reprobadas (35 pts)
     const repPts=[0,12,22,32,35];
-    score += st.rep>=4 ? 35 : (repPts[st.rep]||0);
+    score+=st.rep>=4?35:(repPts[st.rep]||0);
 
-    // 2. Asistencia promedio (30 pts)
-    const asist = ex.a_vals.length ? Math.round(ex.a_vals.reduce((a,b)=>a+b,0)/ex.a_vals.length) : null;
-    if(asist!==null){
-      if(asist>=90) score+=0;
-      else if(asist>=80) score+=8;
-      else if(asist>=70) score+=18;
-      else if(asist>=60) score+=25;
+    // 2. Asistencia real % (30 pts)
+    // Solo se calcula sobre los parciales que ya tienen tope registrado
+    const asistProm=ex.asistPcts.length
+      ?Math.round(ex.asistPcts.reduce((a,b)=>a+b,0)/ex.asistPcts.length)
+      :null;
+    if(asistProm!==null){
+      if(asistProm>=90) score+=0;
+      else if(asistProm>=80) score+=8;
+      else if(asistProm>=70) score+=18;
+      else if(asistProm>=60) score+=25;
       else score+=30;
-    } else score+=10; // sin datos → riesgo parcial
+    } else score+=10; // sin asistencias registradas aún
 
     // 3. Promedio general (20 pts)
     if(st.prom>=8.5) score+=0;
@@ -2387,27 +2421,33 @@ function buildPrediccion(){
     else if(st.prom>=6) score+=12;
     else if(st.prom>0) score+=20;
 
-    // 4. Tendencia calificaciones p1→p3 (10 pts)
-    const avgP1=ex.p1_vals.length?ex.p1_vals.reduce((a,b)=>a+b,0)/ex.p1_vals.length:null;
-    const avgP3=ex.p3_vals.length?ex.p3_vals.reduce((a,b)=>a+b,0)/ex.p3_vals.length:null;
-    let tendencia='estable';
-    if(avgP1!==null&&avgP3!==null){
-      const diff=avgP3-avgP1;
+    // 4. Tendencia entre parciales con datos (10 pts)
+    // Agrupar calificaciones por parcial y promediar
+    const byP={};
+    for(const g of ex.grades){ if(!byP[g.p]) byP[g.p]=[]; byP[g.p].push(g.v); }
+    const parcs=Object.keys(byP).sort().map(p=>({p:Number(p),avg:byP[p].reduce((a,b)=>a+b,0)/byP[p].length}));
+    let tendencia='sin datos';
+    if(parcs.length>=2){
+      const diff=parcs[parcs.length-1].avg-parcs[0].avg;
       if(diff>0.5){tendencia='mejorando';score-=5;}
       else if(diff<-0.5){tendencia='bajando';score+=10;}
+      else tendencia='estable';
+    } else if(parcs.length===1){
+      tendencia='1 parcial'; // no hay suficientes datos para tendencia
     }
 
-    // 5. NPs (10 pts)
-    score += ex.nps===0?0:ex.nps===1?5:10;
+    // 5. NP formalizados + materias con asistencia<80% (en riesgo de NP) (10 pts)
+    const npTotal=ex.nps+ex.atRiskNp;
+    score+=npTotal===0?0:npTotal===1?5:10;
 
-    score = Math.max(0, Math.min(100, score));
+    score=Math.max(0,Math.min(100,score));
     let nivel,color;
     if(score>=76){nivel='critico';color='#C62828';}
     else if(score>=51){nivel='alto';color='#E65100';}
     else if(score>=26){nivel='moderado';color='#F57F17';}
     else{nivel='bajo';color='#2E7D32';}
 
-    return {...st, asist, tendencia, nps:ex.nps, score, nivel, color};
+    return {...st,asistProm,tendencia,nps:ex.nps,atRiskNp:ex.atRiskNp,score,nivel,color};
   }).sort((a,b)=>b.score-a.score);
 
   // Filtros
@@ -2444,14 +2484,14 @@ function filterPrediccion(){
     <div class="kpi kg"><div class="kpi-label">🟢 Bajo Riesgo</div><div class="kpi-value">${ba}</div><div class="kpi-sub">${pct(ba,tot)}% · Puntaje 0-25</div></div>
   `;
 
-  const tendLbl={mejorando:'↗ Mejora',estable:'→ Estable',bajando:'↘ Baja'};
-  const tendCol={mejorando:'var(--verde)',estable:'var(--text3)',bajando:'var(--red)'};
+  const tendLbl={'mejorando':'↗ Mejora','estable':'→ Estable','bajando':'↘ Baja','1 parcial':'· 1 parcial','sin datos':'—'};
+  const tendCol={'mejorando':'var(--verde)','estable':'var(--text3)','bajando':'var(--red)','1 parcial':'var(--text3)','sin datos':'var(--text3)'};
   document.getElementById('predWrap').innerHTML=`
     <table>
       <thead><tr>
         <th>Alumno</th><th>Carrera</th><th>Sem.</th>
         <th>Puntaje</th><th>Nivel</th>
-        <th>Reprobadas</th><th>Promedio</th><th>Asistencia</th><th>Tendencia</th><th>NPs</th>
+        <th>Reprobadas</th><th>Promedio</th><th>Asist. %</th><th>Tendencia</th><th>NP / Riesgo NP</th>
       </tr></thead>
       <tbody>
         ${list.map(s=>`<tr>
@@ -2462,9 +2502,13 @@ function filterPrediccion(){
           <td style="text-align:center"><span style="background:${s.color}18;color:${s.color};border:1px solid ${s.color};border-radius:12px;padding:.1rem .5rem;font-size:.72rem;font-weight:700">${s.nivel.charAt(0).toUpperCase()+s.nivel.slice(1)}</span></td>
           <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${s.rep>0?'var(--red)':'var(--verde)'}">${s.rep}</td>
           <td style="text-align:center">${calBadge(s.prom)}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace">${s.asist!==null?s.asist+'%':'—'}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${s.asistProm!==null?s.asistProm+'%':'—'}</td>
           <td style="text-align:center;font-size:.75rem;color:${tendCol[s.tendencia]||'var(--text3)'}">${tendLbl[s.tendencia]||'—'}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;color:${s.nps>0?'var(--orange)':'var(--text3)'}">${s.nps}</td>
+          <td style="text-align:center;font-size:.75rem">
+            ${s.nps>0?`<span style="color:var(--red);font-family:'DM Mono',monospace;font-weight:700">${s.nps} NP</span>`:''}
+            ${s.atRiskNp>0?`<span style="color:var(--orange);font-size:.68rem">${s.atRiskNp} en riesgo</span>`:''}
+            ${s.nps===0&&s.atRiskNp===0?`<span style="color:var(--text3)">—</span>`:''}
+          </td>
         </tr>`).join('')}
       </tbody>
     </table>`;
@@ -2508,9 +2552,9 @@ function exportDocentesExcel(){
 function exportPrediccionExcel(){
   const list=window._predList||[];
   const nivelLabel={critico:'Crítico',alto:'Alto',moderado:'Moderado',bajo:'Bajo'};
-  const tendLabel={mejorando:'Mejorando',estable:'Estable',bajando:'Bajando'};
-  const rows=[['N° Control','Nombre','Carrera','Semestre','Grupo','Puntaje Riesgo','Nivel','Reprobadas','Promedio','Asistencia %','Tendencia','NPs']];
-  list.forEach(s=>rows.push([s.nc,capName(s.nombre),s.carrera,s.sem||'',s.grupo||'',s.score,nivelLabel[s.nivel],s.rep,s.prom,s.asist!==null?s.asist:'Sin datos',tendLabel[s.tendencia]||'',s.nps]));
+  const tendLabel={mejorando:'Mejorando',estable:'Estable',bajando:'Bajando','1 parcial':'1 parcial','sin datos':'Sin datos'};
+  const rows=[['N° Control','Nombre','Carrera','Semestre','Grupo','Puntaje Riesgo','Nivel','Reprobadas','Promedio','Asistencia %','Tendencia','NPs formalizados','Materias en riesgo NP (<80% asist)']];
+  list.forEach(s=>rows.push([s.nc,capName(s.nombre),s.carrera,s.sem||'',s.grupo||'',s.score,nivelLabel[s.nivel],s.rep,s.prom,s.asistProm!==null?s.asistProm:'Sin datos',tendLabel[s.tendencia]||'',s.nps,s.atRiskNp]));
   const bom='\uFEFF';
   const csv=bom+rows.map(r=>r.map(v=>typeof v==='string'&&(v.includes(',')||v.includes('"'))?`"${v.replace(/"/g,'""')}"`:v).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
