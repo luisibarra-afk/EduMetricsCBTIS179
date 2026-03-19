@@ -832,10 +832,10 @@ function buildDataset(rows){
     const nc_val = g(row,c.nc);
     if(!nc_val && !carRaw) continue;
 
-    // Excluir MÓDULO I, II, III... (registros sin docente real / módulos padre)
+    // Excluir MÓDULO (cualquier posición) y materias socioemocionales
     const asigRaw = g(row,c.asignatura).trim().toUpperCase();
-    if(asigRaw.includes('DULO ') || asigRaw.startsWith('MODULO') || asigRaw.startsWith('MÓDULO')) continue;
-    if(asigRaw.includes('SOCIOEMOCIONAL')) continue; // materia eliminada del plan de estudios
+    if(asigRaw.includes('MODULO')||asigRaw.includes('MÓDULO')||asigRaw.includes('ODULO')) continue;
+    if(asigRaw.includes('EMOCIONAL')) continue; // socioemocional / desarrollo emocional
 
     if(!plantelName || plantelName==='Plantel DGETI'){
       const pv = g(row,c.plantel);
