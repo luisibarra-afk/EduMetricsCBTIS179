@@ -2467,7 +2467,7 @@ function renderCompare(){
   // Materias reprobadas en A para cada alumno abandonado
   const repMatsMap={};
   for(const row of A.rawRows){
-    if(ncsA.has(row.nc)&&!ncsB.has(row.nc)&&row.cal>0&&row.cal<6){
+    if(ncsA.has(row.nc)&&!ncsB.has(row.nc)&&!row.isNP&&row.cal>0&&row.cal<6){
       if(!repMatsMap[row.nc]) repMatsMap[row.nc]=[];
       if(!repMatsMap[row.nc].includes(row.asignatura)) repMatsMap[row.nc].push(row.asignatura);
     }
