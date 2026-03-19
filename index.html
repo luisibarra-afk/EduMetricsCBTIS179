@@ -2352,16 +2352,8 @@ function renderDocentes(){
 }
 
 // ─────────────────────────────────────────────
-// CARRERAS
+// CARRERAS — ver buildCarreras() arriba
 // ─────────────────────────────────────────────
-function buildCarreras(){
-  const {carreras,grupos}=DS;
-  const COLORS=['#6B1A2B','#2E7D32','#1565C0','#E65100','#6A1B9A','#00695C','#C62828','#F57F17','#0277BD','#2E7D32'];
-  mkChart('cCarrBar','bar',{labels:carreras.map(c=>c.n.length>14?c.n.slice(0,13)+'…':c.n),datasets:[{label:'Promedio',data:carreras.map(c=>c.prom),backgroundColor:'rgba(107,26,43,.8)',borderRadius:5},{label:'% Apr./10',data:carreras.map(c=>pct(c.apro,c.apro+c.rep+c.np)/10),backgroundColor:'rgba(46,125,50,.6)',borderRadius:5}]},{plugins:{legend:LEGEND},scales:{x:{grid:GRID,ticks:{...TICK,maxRotation:30}},y:{grid:GRID,ticks:TICK,min:0,max:10}}});
-  mkChart('cCarrPie','doughnut',{labels:carreras.map(c=>c.n),datasets:[{data:carreras.map(c=>c.al),backgroundColor:COLORS.slice(0,carreras.length),borderWidth:2,borderColor:'#fff'}]},{plugins:{legend:{labels:{color:'#444',font:{size:10,family:'DM Mono'}}}}});
-  document.getElementById('tbCarr').innerHTML=carreras.map((c,i)=>{const tot=c.apro+c.rep+c.np,ap=pct(c.apro,tot);return`<tr><td style="font-weight:700;color:var(--vino)">${c.n}</td><td style="font-family:'DM Mono',monospace">${c.al}</td><td>${calBadge(c.prom)}</td><td style="color:var(--verde);font-family:'DM Mono',monospace">${c.apro.toLocaleString()}</td><td style="color:var(--red);font-family:'DM Mono',monospace">${c.rep.toLocaleString()}</td><td style="color:var(--text3);font-family:'DM Mono',monospace">${c.np.toLocaleString()}</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:${colorPct(ap)}">${ap}%</td></tr>`;}).join('');
-  document.getElementById('tbGrupo').innerHTML=grupos.map(g=>{const ap=pct(g.apro,g.total);return`<tr><td style="font-weight:800;font-family:'DM Mono',monospace;color:var(--vino)">${g.n}</td><td style="font-family:'DM Mono',monospace">${g.total.toLocaleString()}</td><td>${calBadge(g.prom)}</td><td style="color:var(--verde);font-family:'DM Mono',monospace">${g.apro.toLocaleString()}</td><td style="color:var(--red);font-family:'DM Mono',monospace">${g.rep.toLocaleString()}</td><td style="color:var(--text3);font-family:'DM Mono',monospace">${g.np.toLocaleString()}</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:${colorPct(ap)}">${ap}%</td></tr>`;}).join('');
-}
 
 // ─────────────────────────────────────────────
 // MAPA DE CALOR
