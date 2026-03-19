@@ -477,9 +477,9 @@ tr:last-child td { border-bottom:none; }
         <div class="sec-head-left"><div class="sec-title">🏫 Carreras y Grupos</div><div class="sec-sub">Comparativa por programa educativo</div></div>
         <button class="print-btn" onclick="printPage('carreras')">🖨 Imprimir Carreras</button>
       </div>
-      <div class="charts-grid">
+      <div class="charts-grid" style="grid-template-columns:2fr 1fr">
         <div class="chart-card"><div class="card-title">📊 Promedio por Carrera</div><div class="chart-wrap tall"><canvas id="cCarrBar"></canvas></div></div>
-        <div class="chart-card"><div class="card-title">🥧 Distribución de Alumnos</div><div class="chart-wrap"><canvas id="cCarrPie"></canvas></div></div>
+        <div class="chart-card"><div class="card-title">🥧 Distribución de Alumnos</div><div class="chart-wrap tall"><canvas id="cCarrPie"></canvas></div></div>
       </div>
       <div class="tbl-card">
         <div class="tbl-head">
@@ -499,30 +499,6 @@ tr:last-child td { border-bottom:none; }
               <th onclick="sortTable('carr','apct')">% Aprobación</th>
             </tr></thead>
             <tbody id="tbCarr"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="tbl-card">
-        <div class="tbl-head">
-          <span class="tbl-head-title">Detalle por Grupo — Semestre 1</span>
-          <div style="display:flex;align-items:center;gap:.5rem">
-            <span style="font-size:.7rem;color:var(--text2)">Sem 3 y 5: filtrar por especialidad en sección Alumnos</span>
-            <span class="count-tag" id="grupoCount">—</span>
-          </div>
-        </div>
-        <div class="tbl-wrap">
-          <table id="tblGrupo">
-            <thead><tr>
-              <th onclick="sortTable('grupo','n')">Grupo</th>
-              <th onclick="sortTable('grupo','sem')">Sem.</th>
-              <th onclick="sortTable('grupo','al')">Alumnos</th>
-              <th onclick="sortTable('grupo','prom')">Promedio</th>
-              <th onclick="sortTable('grupo','apro')">Aprobados</th>
-              <th onclick="sortTable('grupo','rep')">Reprobados</th>
-              <th onclick="sortTable('grupo','np')">NP</th>
-              <th onclick="sortTable('grupo','apct')">% Aprobación</th>
-            </tr></thead>
-            <tbody id="tbGrupo"></tbody>
           </table>
         </div>
       </div>
@@ -1432,9 +1408,7 @@ function buildCarreras(){
   mkChart('cCarrPie','doughnut',{labels:carreras.map(c=>c.n),datasets:[{data:carreras.map(c=>c.al),backgroundColor:COLORS.slice(0,carreras.length),borderWidth:2,borderColor:'#ffffff'}]},{plugins:{legend:{labels:{color:'#5a6275',font:{size:10,family:'DM Mono'}}}}});
   // Default sort: reprobados desc
   tblSort['carr']={f:'rep',d:-1};
-  tblSort['grupo']={f:'prom',d:-1};
   renderCarrTable();
-  renderGrupoTable();
 }
 
 // ─────────────────────────────────────────────
@@ -2012,15 +1986,11 @@ function printPage(tipo){
     </tbody></table>`;
 
   } else if(tipo==='carreras'){
-    const {carreras,grupos}=DS;
+    const {carreras}=DS;
     body=`${HDR}
     <h2 style="font-size:15px;color:#6B1A2B;margin-bottom:10px">Análisis por Carrera</h2>
-    <table style="${T}"><thead><tr><th style="${TH}">Carrera</th><th style="${TH}">Alumnos</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th></tr></thead><tbody>
-    ${carreras.map((c,i)=>{const ap=pct(c.apro,c.apro+c.rep+c.np);return`<tr><td style="${TD(i)};font-weight:700;color:#6B1A2B">${c.n}</td><td style="${TD(i)};text-align:center">${c.al}</td><td style="${TD(i)};text-align:center;font-weight:700">${c.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${c.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${c.rep}</td><td style="${TD(i)};text-align:center;color:#888">${c.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td></tr>`;}).join('')}
-    </tbody></table>
-    <h2 style="font-size:13px;color:#6B1A2B;margin-bottom:8px;margin-top:16px">Detalle por Grupo</h2>
-    <table style="${T}"><thead><tr><th style="${TH}">Grupo</th><th style="${TH}">Registros</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th></tr></thead><tbody>
-    ${grupos.map((g,i)=>{const ap=pct(g.apro,g.total);return`<tr><td style="${TD(i)};font-weight:800;font-family:monospace">${g.n}</td><td style="${TD(i)};text-align:center">${g.total}</td><td style="${TD(i)};text-align:center;font-weight:700">${g.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${g.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${g.rep}</td><td style="${TD(i)};text-align:center;color:#888">${g.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td></tr>`;}).join('')}
+    <table style="${T}"><thead><tr><th style="${TH}">Carrera</th><th style="${TH}">Turno</th><th style="${TH}">Alumnos</th><th style="${TH}">Promedio</th><th style="${TH}">Aprobados</th><th style="${TH}">Reprobados</th><th style="${TH}">NP</th><th style="${TH}">% Apr.</th></tr></thead><tbody>
+    ${carreras.map((c,i)=>{const ap=pct(c.apro,c.apro+c.rep+c.np);return`<tr><td style="${TD(i)};font-weight:700;color:#6B1A2B">${c.n}</td><td style="${TD(i)};text-transform:capitalize">${c.turno||'—'}</td><td style="${TD(i)};text-align:center">${c.al}</td><td style="${TD(i)};text-align:center;font-weight:700">${c.prom}</td><td style="${TD(i)};text-align:center;color:#2E7D32">${c.apro}</td><td style="${TD(i)};text-align:center;color:#C62828">${c.rep}</td><td style="${TD(i)};text-align:center;color:#888">${c.np}</td><td style="${TD(i)};text-align:center;font-weight:700">${sem(ap)} ${ap}%</td></tr>`;}).join('')}
     </tbody></table>`;
 
 
